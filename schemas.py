@@ -1,6 +1,17 @@
 from pydantic import BaseModel
 from typing import Optional
 
+class CategoryBase(BaseModel):
+    name: str
+
+class CategoryCreate(CategoryBase):
+    pass
+
+class CategoryResponse(CategoryBase):
+    id: int
+    class Config:
+        from_attributes = True
+        
 # Cấu trúc dữ liệu Sách
 class BookBase(BaseModel):
     title: str
