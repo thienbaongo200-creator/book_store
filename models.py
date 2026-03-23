@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, ForeignKey # Thêm ForeignKey
 from database import Base
 
 class Book(Base):
@@ -9,3 +9,4 @@ class Book(Base):
     author = Column(String(255))
     price = Column(Float)
     stock = Column(Integer, default=0)
+    category_id = Column(Integer, ForeignKey("categories.id")) 
