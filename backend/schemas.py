@@ -32,5 +32,6 @@ class BookUpdate(BaseModel):
 
 class BookResponse(BookBase):
     id: int
+    image_url: Optional[str] = None
     class Config:
         from_attributes = True

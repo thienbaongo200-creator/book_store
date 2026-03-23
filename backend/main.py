@@ -1,20 +1,24 @@
+import os
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
-import models, schemas
-from database import SessionLocal, engine
+from fastapi.staticfiles import StaticFiles
 
-# Tạo bảng tự động
+# Import bằng dấu chấm (.) để Python biết tìm ở cùng thư mục backend/
+from . import models, schemas
+from .database import SessionLocal, engine
+
+# Tự động tạo bảng trong MySQL nếu chưa có
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Hệ thống Quản lý Nhà sách - Team Bảo",
     description="API quản lý sách và danh mục chạy trên Linux, MySQL và FastAPI",
-    version="1.1.0"
+    version="1.2.0"
 )
 
-# Cấu hình CORS - Cho phép tất cả để test dễ dàng
+# 1. Cấu hình CORS - Giúp Frontend React gọi API không bị chặn
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -23,7 +27,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Dependency
+# 2. Cấu hình đường dẫn Static Files (Để hiện ảnh sách)
+# Lấy đường dẫn tuyệt đối đến thư mục 'static' nằm cùng cấp với main.py
+current_dir = os.path.dirname(os.path.realpath(__file__))
+static_path = os.path.join(current_dir, "static")
+
+# Tạo thư mục static/images nếu Bảo chưa tạo tay
+os.makedirs(os.path.join(static_path, "images"), exist_ok=True)
+
+# Mount thư mục static để truy cập qua URL: http://127.0.0.1:8000/static/...
+app.mount("/static", StaticFiles(directory=static_path), name="static")
+
+# Dependency để kết nối Database
 def get_db():
     db = SessionLocal()
     try:
@@ -36,9 +51,10 @@ def get_db():
 @app.get("/", tags=["Trang chủ"])
 def read_root():
     return {
-        "message": "Chào mừng Bảo đến with Backend Nhà sách!",
+        "message": "Chào mừng Bảo đến với Backend Nhà sách!",
         "status": "Online",
-        "docs": "/docs"
+        "docs": "/docs",
+        "image_directory": static_path
     }
 
 # --- QUẢN LÝ DANH MỤC (CATEGORIES) ---
@@ -59,7 +75,6 @@ def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_
 
 @app.get("/books/", response_model=List[schemas.BookResponse], tags=["Quản lý Sách"])
 def read_books(search: Optional[str] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Lấy danh sách sách kết hợp tìm kiếm theo tên"""
     query = db.query(models.Book)
     if search:
         query = query.filter(models.Book.title.contains(search))
@@ -74,10 +89,10 @@ def read_book(book_id: int, db: Session = Depends(get_db)):
 
 @app.post("/books/", response_model=schemas.BookResponse, tags=["Quản lý Sách"])
 def create_book(book: schemas.BookCreate, db: Session = Depends(get_db)):
-    # Kiểm tra danh mục tồn tại
+    # Kiểm tra danh mục tồn tại trước khi thêm sách
     category = db.query(models.Category).filter(models.Category.id == book.category_id).first()
     if not category:
-        raise HTTPException(status_code=400, detail="Danh mục (category_id) không tồn tại!")
+        raise HTTPException(status_code=400, detail="Danh mục không tồn tại!")
     
     db_book = models.Book(**book.model_dump())
     db.add(db_book)
