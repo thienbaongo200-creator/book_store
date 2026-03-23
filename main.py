@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import models, schemas
 from database import SessionLocal, engine
 
-# 1. Tạo bảng tự động (chạy khi khởi động server)
+# Tạo bảng tự động
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -14,16 +14,16 @@ app = FastAPI(
     version="1.1.0"
 )
 
-# 2. Cấu hình CORS (Cho phép máy thật/Frontend truy cập vào máy ảo)
+# Cấu hình CORS - Cho phép tất cả để test dễ dàng
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 3. Dependency: Kết nối Database
+# Dependency
 def get_db():
     db = SessionLocal()
     try:
@@ -31,12 +31,12 @@ def get_db():
     finally:
         db.close()
 
-# --- ENDPOINTS ---
+# --- CÁC ENDPOINTS ---
 
 @app.get("/", tags=["Trang chủ"])
 def read_root():
     return {
-        "message": "Chào mừng Bảo đến với Backend Nhà sách!",
+        "message": "Chào mừng Bảo đến with Backend Nhà sách!",
         "status": "Online",
         "docs": "/docs"
     }
@@ -45,12 +45,10 @@ def read_root():
 
 @app.get("/categories/", response_model=List[schemas.CategoryResponse], tags=["Danh mục"])
 def list_categories(db: Session = Depends(get_db)):
-    """Lấy tất cả danh mục sách hiện có"""
     return db.query(models.Category).all()
 
 @app.post("/categories/", response_model=schemas.CategoryResponse, tags=["Danh mục"])
 def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
-    """Thêm một danh mục mới (Ví dụ: Trinh thám, Nấu ăn...)"""
     db_category = models.Category(name=category.name)
     db.add(db_category)
     db.commit()
@@ -60,19 +58,12 @@ def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_
 # --- QUẢN LÝ SÁCH (BOOKS) ---
 
 @app.get("/books/", response_model=List[schemas.BookResponse], tags=["Quản lý Sách"])
-def read_books(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Lấy danh sách sách (có phân trang)"""
-    return db.query(models.Book).offset(skip).limit(limit).all()
-
-@app.get("/books/search/", response_model=List[schemas.BookResponse], tags=["Tra cứu"])
-def search_books(title: Optional[str] = None, min_price: float = 0, db: Session = Depends(get_db)):
-    """Tìm kiếm sách theo tên gần đúng hoặc lọc theo giá tối thiểu"""
+def read_books(search: Optional[str] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """Lấy danh sách sách kết hợp tìm kiếm theo tên"""
     query = db.query(models.Book)
-    if title:
-        query = query.filter(models.Book.title.contains(title))
-    if min_price > 0:
-        query = query.filter(models.Book.price >= min_price)
-    return query.all()
+    if search:
+        query = query.filter(models.Book.title.contains(search))
+    return query.offset(skip).limit(limit).all()
 
 @app.get("/books/{book_id}", response_model=schemas.BookResponse, tags=["Quản lý Sách"])
 def read_book(book_id: int, db: Session = Depends(get_db)):
@@ -83,7 +74,7 @@ def read_book(book_id: int, db: Session = Depends(get_db)):
 
 @app.post("/books/", response_model=schemas.BookResponse, tags=["Quản lý Sách"])
 def create_book(book: schemas.BookCreate, db: Session = Depends(get_db)):
-    # Kiểm tra xem category_id có tồn tại không trước khi thêm sách
+    # Kiểm tra danh mục tồn tại
     category = db.query(models.Category).filter(models.Category.id == book.category_id).first()
     if not category:
         raise HTTPException(status_code=400, detail="Danh mục (category_id) không tồn tại!")
@@ -98,7 +89,7 @@ def create_book(book: schemas.BookCreate, db: Session = Depends(get_db)):
 def update_book(book_id: int, book_update: schemas.BookUpdate, db: Session = Depends(get_db)):
     db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if not db_book:
-        raise HTTPException(status_code=404, detail="Không tìm thấy sách để cập nhật!")
+        raise HTTPException(status_code=404, detail="Không tìm thấy sách!")
     
     update_data = book_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -112,8 +103,8 @@ def update_book(book_id: int, book_update: schemas.BookUpdate, db: Session = Dep
 def delete_book(book_id: int, db: Session = Depends(get_db)):
     db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if not db_book:
-        raise HTTPException(status_code=404, detail="Sách không tồn tại để xóa!")
+        raise HTTPException(status_code=404, detail="Sách không tồn tại!")
     
     db.delete(db_book)
     db.commit()
-    return {"message": f"Đã xóa thành công sách có ID: {book_id}"}
+    return {"message": f"Đã xóa thành công sách ID {book_id}"}
