@@ -1,10 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional # Thêm Optional để chuẩn hóa type
 import models, schemas
 from database import SessionLocal, engine
+from fastapi.middleware.cors import CORSMiddleware
 
-# Tạo bảng tự động dựa trên models (Nếu chưa có trong MySQL)
+# Tạo bảng tự động
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -13,7 +14,16 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Dependency: Hàm lấy kết nối Database cho mỗi request
+# Cấu hình CORS - Cho phép cả localhost và 127.0.0.1 để tránh lỗi trình duyệt
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Dependency
 def get_db():
     db = SessionLocal()
     try:
@@ -21,24 +31,30 @@ def get_db():
     finally:
         db.close()
 
-# --- CÁC ENDPOINTS (ĐƯỜNG DẪN API) ---
+# --- CÁC ENDPOINTS ---
 
 @app.get("/", tags=["Trang chủ"])
 def read_root():
-    """Trang chào mừng để tránh lỗi Not Found"""
     return {
         "message": "Chào mừng Bảo đến với Backend Nhà sách!",
         "status": "Online",
         "swagger_docs": "/docs"
     }
 
-# 1. LẤY DANH SÁCH TẤT CẢ SÁCH (READ)
+# 1. LẤY DANH SÁCH SÁCH + TÌM KIẾM (Gộp chung vào 1 hàm duy nhất)
 @app.get("/books/", response_model=List[schemas.BookResponse], tags=["Quản lý Sách"])
-def read_books(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    books = db.query(models.Book).offset(skip).limit(limit).all()
+def read_books(search: Optional[str] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    query = db.query(models.Book)
+    
+    if search:
+        # Sử dụng ilike để tìm kiếm không phân biệt hoa thường (nếu MySQL hỗ trợ)
+        # Hoặc dùng contains như cũ
+        query = query.filter(models.Book.title.contains(search))
+    
+    books = query.offset(skip).limit(limit).all()
     return books
 
-# 2. LẤY CHI TIẾT 1 CUỐN SÁCH THEO ID
+# 2. LẤY CHI TIẾT 1 CUỐN SÁCH
 @app.get("/books/{book_id}", response_model=schemas.BookResponse, tags=["Quản lý Sách"])
 def read_book(book_id: int, db: Session = Depends(get_db)):
     db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
@@ -46,24 +62,22 @@ def read_book(book_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Không tìm thấy sách!")
     return db_book
 
-# 3. THÊM SÁCH MỚI (CREATE)
+# 3. THÊM SÁCH MỚI
 @app.post("/books/", response_model=schemas.BookResponse, tags=["Quản lý Sách"])
 def create_book(book: schemas.BookCreate, db: Session = Depends(get_db)):
-    # model_dump() chuyển dữ liệu từ Pydantic sang Dictionary để nạp vào DB
     db_book = models.Book(**book.model_dump())
     db.add(db_book)
     db.commit()
     db.refresh(db_book)
     return db_book
 
-# 4. CẬP NHẬT THÔNG TIN SÁCH (UPDATE)
+# 4. CẬP NHẬT THÔNG TIN SÁCH
 @app.put("/books/{book_id}", response_model=schemas.BookResponse, tags=["Quản lý Sách"])
 def update_book(book_id: int, book_update: schemas.BookUpdate, db: Session = Depends(get_db)):
     db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if not db_book:
-        raise HTTPException(status_code=404, detail="Không tìm thấy sách để cập nhật!")
+        raise HTTPException(status_code=404, detail="Không tìm thấy sách!")
     
-    # Chỉ cập nhật các trường được gửi lên (exclude_unset=True)
     update_data = book_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_book, key, value)
@@ -72,13 +86,13 @@ def update_book(book_id: int, book_update: schemas.BookUpdate, db: Session = Dep
     db.refresh(db_book)
     return db_book
 
-# 5. XÓA SÁCH (DELETE)
+# 5. XÓA SÁCH
 @app.delete("/books/{book_id}", tags=["Quản lý Sách"])
 def delete_book(book_id: int, db: Session = Depends(get_db)):
     db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if not db_book:
-        raise HTTPException(status_code=404, detail="Sách không tồn tại để xóa!")
+        raise HTTPException(status_code=404, detail="Sách không tồn tại!")
     
     db.delete(db_book)
     db.commit()
-    return {"message": f"Đã xóa thành công sách có ID: {book_id}"}
+    return {"message": f"Đã xóa thành công sách ID {book_id}"}
