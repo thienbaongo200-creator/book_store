@@ -6,8 +6,6 @@ import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Admin from './pages/Admin';
 import Cart from './pages/Cart';
-
-// PHẢI CÓ DÒNG NÀY:
 import BookDetail from './pages/BookDetail'; 
 
 function App() {
@@ -20,10 +18,7 @@ function App() {
         
         <Routes>
           <Route path="/" element={<Home searchTerm={search} />} />
-          
-          {/* Route cho trang chi tiết sách */}
           <Route path="/book/:id" element={<BookDetail />} />
-          
           <Route path="/admin" element={<Admin />} />
           <Route path="/cart" element={<Cart />} />
         </Routes>

@@ -1,11 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { getBooks } from '../services/api';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 
 const Home = ({ searchTerm }) => {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  const addToCart = async (bookId, title) => {
+    try {
+      await axios.post(`${BASE_URL}/cart/`, {
+        book_id: bookId,
+        quantity: 1
+      });
+      alert(`Đã thêm "${title}" vào giỏ hàng thành công!`);
+    } catch (error) {
+      console.error("Lỗi khi thêm vào giỏ:", error);
+      alert("Không thể thêm vào giỏ, hãy kiểm tra lại kết nối Backend!");
+    }
+  };
   // Địa chỉ Backend của Bảo
   const BASE_URL = "http://127.0.0.1:8000";
 
@@ -94,7 +106,8 @@ const Home = ({ searchTerm }) => {
                     disabled={book.stock <= 0}
                     onClick={(e) => {
                       e.preventDefault(); 
-                      alert(`Đã thêm "${book.title}" vào giỏ hàng!`);
+                      e.stopPropagation(); 
+                      addToCart(book.id, book.title);
                     }}
                     className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg transition-all active:scale-90 ${
                       book.stock > 0 
