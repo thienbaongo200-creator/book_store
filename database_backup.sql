@@ -29,11 +29,13 @@ CREATE TABLE `books` (
   `price` float DEFAULT NULL,
   `stock` int DEFAULT NULL,
   `category_id` int DEFAULT NULL,
+  `image_url` varchar(555) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `ix_books_id` (`id`),
   KEY `ix_books_title` (`title`),
-  KEY `category_id` (`category_id`),
-  CONSTRAINT `books_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`)
+  KEY `fk_category` (`category_id`),
+  CONSTRAINT `books_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`),
+  CONSTRAINT `fk_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -43,7 +45,7 @@ CREATE TABLE `books` (
 
 LOCK TABLES `books` WRITE;
 /*!40000 ALTER TABLE `books` DISABLE KEYS */;
-INSERT INTO `books` VALUES (1,'Clean Code','Robert C. Martin',450000,20,1),(2,'Dạy Con Làm Giàu','Robert Kiyosaki',125000,100,2),(3,'Đắc Nhân Tâm','Dale Carnegie',85000,200,3);
+INSERT INTO `books` VALUES (1,'Clean Code','Robert C. Martin',450000,20,1,'/static/images/cleancode.jpg'),(2,'Dạy Con Làm Giàu','Robert Kiyosaki',125000,100,2,'/static/images/dayconlamgiau.jpg'),(3,'Đắc Nhân Tâm','Dale Carnegie',85000,200,3,'/static/images/datnhantam.jpg');
 /*!40000 ALTER TABLE `books` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -106,4 +108,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-03-22 21:59:30
+-- Dump completed on 2026-03-24  2:21:52
