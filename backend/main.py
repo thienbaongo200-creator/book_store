@@ -79,7 +79,6 @@ def read_books(search: Optional[str] = None, skip: int = 0, limit: int = 100, db
     if search:
         query = query.filter(models.Book.title.contains(search))
     return query.offset(skip).limit(limit).all()
-
 @app.get("/books/{book_id}", response_model=schemas.BookResponse, tags=["Quản lý Sách"])
 def read_book(book_id: int, db: Session = Depends(get_db)):
     db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
@@ -89,11 +88,9 @@ def read_book(book_id: int, db: Session = Depends(get_db)):
 
 @app.post("/books/", response_model=schemas.BookResponse, tags=["Quản lý Sách"])
 def create_book(book: schemas.BookCreate, db: Session = Depends(get_db)):
-    # Kiểm tra danh mục tồn tại trước khi thêm sách
     category = db.query(models.Category).filter(models.Category.id == book.category_id).first()
     if not category:
         raise HTTPException(status_code=400, detail="Danh mục không tồn tại!")
-    
     db_book = models.Book(**book.model_dump())
     db.add(db_book)
     db.commit()
@@ -105,11 +102,9 @@ def update_book(book_id: int, book_update: schemas.BookUpdate, db: Session = Dep
     db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if not db_book:
         raise HTTPException(status_code=404, detail="Không tìm thấy sách!")
-    
     update_data = book_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_book, key, value)
-    
     db.commit()
     db.refresh(db_book)
     return db_book
@@ -119,7 +114,29 @@ def delete_book(book_id: int, db: Session = Depends(get_db)):
     db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if not db_book:
         raise HTTPException(status_code=404, detail="Sách không tồn tại!")
-    
     db.delete(db_book)
     db.commit()
     return {"message": f"Đã xóa thành công sách ID {book_id}"}
+
+@app.post("/cart/", response_model=schemas.CartItemResponse, tags=["Giỏ hàng"])
+def add_to_cart(item: schemas.CartItemCreate, db: Session = Depends(get_db)):
+    db_item = db.query(models.CartItem).filter(models.CartItem.book_id == item.book_id).first()
+    if db_item:
+        db_item.quantity += item.quantity
+    else:
+        db_item = models.CartItem(**item.model_dump())
+        db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+@app.get("/cart/", response_model=List[schemas.CartItemResponse], tags=["Giỏ hàng"])
+def get_cart(db: Session = Depends(get_db)):
+    return db.query(models.CartItem).all()
+@app.delete("/cart/{item_id}", tags=["Giỏ hàng"])
+def delete_cart_item(item_id: int, db: Session = Depends(get_db)):
+    db_item = db.query(models.CartItem).filter(models.CartItem.id == item_id).first()
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Không tìm thấy mục trong giỏ!")
+    db.delete(db_item)
+    db.commit()
+    return {"message": "Đã xóa khỏi giỏ hàng"}

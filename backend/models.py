@@ -18,3 +18,9 @@ class Book(Base):
     stock = Column(Integer, default=0)
     category_id = Column(Integer, ForeignKey("categories.id"))
     category = relationship("Category", back_populates="books")
+class CartItem(Base):
+    __tablename__ = "cart_items"
+    id = Column(Integer, primary_key=True, index=True)
+    book_id = Column(Integer, ForeignKey("books.id"))
+    quantity = Column(Integer, default=1)
+    book = relationship("Book")

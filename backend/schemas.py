@@ -35,3 +35,14 @@ class BookResponse(BookBase):
     image_url: Optional[str] = None
     class Config:
         from_attributes = True
+class CartItemCreate(BaseModel):
+    book_id: int
+    quantity: int = 1
+
+class CartItemResponse(BaseModel):
+    id: int
+    book_id: int
+    quantity: int
+    book: BookResponse 
+    class Config:
+        from_attributes = True
