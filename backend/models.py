@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
+from sqlalchemy import Column, Integer, String, BigInteger, ForeignKey
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -13,8 +13,15 @@ class Book(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), index=True)
     author = Column(String(255))
-    price = Column(Float)
+    price = Column(Integer, default=0) 
     image_url = Column(String(555), nullable=True)
     stock = Column(Integer, default=0)
     category_id = Column(Integer, ForeignKey("categories.id"))
     category = relationship("Category", back_populates="books")
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True)
+    password = Column(String(100))
+    role = Column(String(20), default="user")
