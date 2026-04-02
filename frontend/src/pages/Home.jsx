@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 
 const Home = ({ searchTerm }) => {
+  const [page, setPage] = useState(1);
+  const limit = 8; // số sách mỗi trang
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const addToCart = async (bookId, title) => {
@@ -22,17 +24,17 @@ const Home = ({ searchTerm }) => {
   const BASE_URL = "http://127.0.0.1:8000";
 
   useEffect(() => {
-    setLoading(true);
-    getBooks(searchTerm)
-      .then((res) => {
-        setBooks(res.data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Lỗi khi lấy dữ liệu sách:", err);
-        setLoading(false);
-      });
-  }, [searchTerm]);
+  setLoading(true);
+  getBooks(searchTerm, page, limit)
+    .then((res) => {
+      setBooks(res.data);
+      setLoading(false);
+    })
+    .catch((err) => {
+      console.error("Lỗi khi lấy dữ liệu sách:", err);
+      setLoading(false);
+    });
+}, [searchTerm, page]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -48,6 +50,23 @@ const Home = ({ searchTerm }) => {
         <span className="text-gray-500 text-sm font-medium bg-gray-100 px-3 py-1 rounded-full">
           {books.length} sản phẩm
         </span>
+      </div>
+          <div className="flex justify-center mt-10 space-x-4">
+        <button
+          onClick={() => setPage(page - 1)}
+          disabled={page === 1}
+          className="px-4 py-2 bg-gray-200 rounded disabled:opacity-50"
+        >
+          Trang trước
+        </button>
+        <span className="px-4 py-2 font-bold">Trang {page}</span>
+        <button
+          onClick={() => setPage(page + 1)}
+          disabled={books.length < limit}
+          className="px-4 py-2 bg-gray-200 rounded disabled:opacity-50"
+        >
+          Trang tiếp
+        </button>
       </div>
 
       {loading ? (
@@ -135,6 +154,7 @@ const Home = ({ searchTerm }) => {
             Quay lại tất cả sách
           </button>
         </div>
+    
       )}
     </div>
   );

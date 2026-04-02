@@ -7,8 +7,11 @@ const api = axios.create({
   },
 });
 
-export const getBooks = (search = "") => {
-  const url = search ? `/books/?search=${encodeURIComponent(search)}` : "/books/";
+export const getBooks = (search = "", page = 1, limit = 8) => {
+  const skip = (page - 1) * limit;
+  const url = search 
+    ? `/books/?search=${encodeURIComponent(search)}&skip=${skip}&limit=${limit}`
+    : `/books/?skip=${skip}&limit=${limit}`;
   return api.get(url);
 };
 
@@ -23,5 +26,6 @@ export const deleteBook = (id) => {
 export const updateBook = (id, bookData) => {
   return api.put(`/books/${id}`, bookData);
 };
+
 
 export default api;
