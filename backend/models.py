@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, BigInteger, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -25,3 +25,10 @@ class User(Base):
     username = Column(String(50), unique=True)
     password = Column(String(100))
     role = Column(String(20), default="user")
+
+class CartItem(Base):
+    __tablename__ = "cart_items"
+    id = Column(Integer, primary_key=True, index=True)
+    book_id = Column(Integer, ForeignKey("books.id"))
+    quantity = Column(Integer, default=1)
+    book = relationship("Book")

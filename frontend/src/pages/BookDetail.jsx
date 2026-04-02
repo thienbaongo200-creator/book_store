@@ -8,6 +8,18 @@ const BookDetail = () => {
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const addToCart = async () => {
+    try {
+      await axios.post(`${BASE_URL}/cart/`, {
+        book_id: book.id,
+        quantity: 1
+      });
+      alert(`Đã thêm "${book.title}" vào giỏ hàng thành công!`);
+    } catch (error) {
+      console.error("Lỗi khi thêm vào giỏ:", error);
+      alert("Lỗi kết nối! Không thể thêm vào giỏ hàng.");
+    }
+  };
   // Địa chỉ Backend FastAPI của Bảo
   const BASE_URL = "http://127.0.0.1:8000";
 
@@ -117,9 +129,18 @@ const BookDetail = () => {
           </div>
 
           <div className="mt-10 flex gap-4">
-            <button className="flex-1 bg-indigo-600 text-white py-5 rounded-2xl font-bold text-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all active:scale-95">
-              Thêm vào giỏ hàng
+            <button 
+              onClick={addToCart} 
+              disabled={book.stock <= 0}
+              className={`flex-1 py-5 rounded-2xl font-bold text-xl shadow-lg transition-all active:scale-95 text-white ${
+                book.stock > 0 
+                ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200' 
+                : 'bg-gray-300 cursor-not-allowed shadow-none'
+              }`}
+            >
+              {book.stock > 0 ? "Thêm vào giỏ hàng" : "Đã hết hàng"}
             </button>
+            
             <button className="p-5 bg-gray-100 text-gray-600 rounded-2xl hover:bg-red-50 hover:text-red-500 transition-colors">
               ❤
             </button>

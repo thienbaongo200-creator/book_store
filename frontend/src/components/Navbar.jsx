@@ -9,7 +9,7 @@ const Navbar = ({ onSearch }) => {
     e.preventDefault();
     if (onSearch) {
       onSearch(keyword);
-      navigate("/"); // Luôn quay về trang chủ để hiện kết quả tìm kiếm
+      navigate("/");
     }
   };
 
