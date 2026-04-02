@@ -12,13 +12,13 @@ class CategoryResponse(CategoryBase):
     id: int
     
     class Config:
-        from_attributes = True # Giúp Pydantic hiểu dữ liệu từ SQLAlchemy ORM
+        from_attributes = True 
         
 # --- Cấu trúc dữ liệu Sách ---
 class BookBase(BaseModel):
     title: str
     author: str
-    price: int  # ĐÃ SỬA: Đổi từ float sang int để khớp với models.py
+    price: int  
     stock: int
     category_id: int
     image_url: Optional[str] = None
@@ -29,7 +29,7 @@ class BookCreate(BookBase):
 class BookUpdate(BaseModel):
     title: Optional[str] = None
     author: Optional[str] = None
-    price: Optional[int] = None # ĐÃ SỬA: Đổi sang int
+    price: Optional[int] = None 
     stock: Optional[int] = None
     category_id: Optional[int] = None
     image_url: Optional[str] = None
@@ -40,7 +40,7 @@ class BookResponse(BookBase):
     class Config:
         from_attributes = True
 
-# --- Cấu trúc dữ liệu Người dùng (Dành cho chức năng Admin/User) ---
+# --- Cấu trúc dữ liệu Người dùng ---
 class UserResponse(BaseModel):
     id: int
     username: str
@@ -48,14 +48,29 @@ class UserResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+# --- Cấu trúc dữ liệu Giỏ hàng ---
+# ĐÃ THÊM: Lớp này để nhận dữ liệu từ Frontend gửi lên
 class CartItemCreate(BaseModel):
     book_id: int
+    user_id: int  
     quantity: int = 1
 
 class CartItemResponse(BaseModel):
     id: int
     book_id: int
+    user_id: int
     quantity: int
     book: BookResponse 
+
+    class Config:
+        from_attributes = True
+        
+# --- Cấu trúc dữ liệu Đơn hàng ---
+class OrderResponse(BaseModel):
+    id: int
+    total_price: int
+    status: str
+    user_id: int
     class Config:
         from_attributes = True

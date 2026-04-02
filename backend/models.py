@@ -25,10 +25,22 @@ class User(Base):
     username = Column(String(50), unique=True)
     password = Column(String(100))
     role = Column(String(20), default="user")
+    orders = relationship("Order", back_populates="owner")
+    cart_items = relationship("CartItem", back_populates="user")
 
 class CartItem(Base):
     __tablename__ = "cart_items"
     id = Column(Integer, primary_key=True, index=True)
     book_id = Column(Integer, ForeignKey("books.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
     quantity = Column(Integer, default=1)
     book = relationship("Book")
+    user = relationship("User", back_populates="cart_items")
+
+class Order(Base):
+    __tablename__ = "orders"
+    id = Column(Integer, primary_key=True, index=True)
+    total_price = Column(Integer)
+    status = Column(String(50), default="Pending") # Trạng thái: Chờ duyệt, Đã giao...
+    user_id = Column(Integer, ForeignKey("users.id"))
+    owner = relationship("User", back_populates="orders")

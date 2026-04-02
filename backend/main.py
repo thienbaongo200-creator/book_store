@@ -132,12 +132,17 @@ def delete_book(
 
 @app.post("/cart/", response_model=schemas.CartItemResponse, tags=["Giỏ hàng"])
 def add_to_cart(item: schemas.CartItemCreate, db: Session = Depends(get_db)):
-    db_item = db.query(models.CartItem).filter(models.CartItem.book_id == item.book_id).first()
+    db_item = db.query(models.CartItem).filter(
+        models.CartItem.book_id == item.book_id,
+        models.CartItem.user_id == item.user_id 
+    ).first()
+    
     if db_item:
         db_item.quantity += item.quantity
     else:
         db_item = models.CartItem(**item.model_dump())
         db.add(db_item)
+    
     db.commit()
     db.refresh(db_item)
     return db_item
@@ -154,3 +159,31 @@ def delete_cart_item(item_id: int, db: Session = Depends(get_db)):
     db.delete(db_item)
     db.commit()
     return {"message": "Đã xóa khỏi giỏ hàng"}
+
+# --- QUẢN LÝ ĐƠN HÀNG (ORDERS) ---
+
+@app.post("/orders/{user_id}", tags=["Đơn hàng"])
+def create_order(user_id: int, db: Session = Depends(get_db)):
+    # 1. Lấy tất cả món đồ trong giỏ của user này
+    cart_items = db.query(models.CartItem).filter(models.CartItem.user_id == user_id).all()
+    if not cart_items:
+        raise HTTPException(status_code=400, detail="Giỏ hàng trống, không thể thanh toán!")
+    
+    # 2. Tính tổng tiền
+    total = sum(item.book.price * item.quantity for item in cart_items)
+    
+    # 3. Tạo đơn hàng mới
+    new_order = models.Order(user_id=user_id, total_price=total, status="Processing")
+    db.add(new_order)
+    
+    # 4. Xóa giỏ hàng sau khi đã lên đơn
+    db.query(models.CartItem).filter(models.CartItem.user_id == user_id).delete()
+    
+    db.commit()
+    db.refresh(new_order)
+    return {"message": "Thanh toán thành công!", "order_id": new_order.id, "total": total}
+
+@app.get("/orders/", tags=["Quản trị - Đơn hàng"])
+def list_all_orders(user_role: str = Query("user"), db: Session = Depends(get_db)):
+    check_admin_role(user_role) 
+    return db.query(models.Order).all()
