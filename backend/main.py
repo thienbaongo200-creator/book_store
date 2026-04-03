@@ -1,10 +1,9 @@
 import os
 from fastapi import FastAPI, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-
+from sqlalchemy.orm import Session, joinedload
 # Import từ cùng thư mục backend/
 from . import models, schemas
 from .database import SessionLocal, engine
@@ -187,3 +186,48 @@ def create_order(user_id: int, db: Session = Depends(get_db)):
 def list_all_orders(user_role: str = Query("user"), db: Session = Depends(get_db)):
     check_admin_role(user_role) 
     return db.query(models.Order).all()
+@app.post("/wishlist/", tags=["Yêu thích"])
+def add_to_wishlist(item: schemas.WishlistCreate, db: Session = Depends(get_db)):
+    # Kiểm tra xem đã yêu thích chưa để tránh trùng lặp
+    exists = db.query(models.Wishlist).filter(
+        models.Wishlist.book_id == item.book_id, 
+        models.Wishlist.user_id == item.user_id
+    ).first()
+    if exists:
+        return {"message": "Đã có trong danh sách yêu thích"}
+    
+    db_item = models.Wishlist(**item.model_dump())
+    db.add(db_item)
+    db.commit()
+    return {"message": "Đã thêm vào yêu thích"}
+
+@app.get("/wishlist/", tags=["Yêu thích"])
+def get_wishlist(db: Session = Depends(get_db)):
+    return db.query(models.Wishlist).options(joinedload(models.Wishlist.book)).all()
+@app.delete("/wishlist/{wish_id}", tags=["Yêu thích"])
+def delete_wishlist_item(wish_id: int, db: Session = Depends(get_db)):
+    db_item = db.query(models.Wishlist).filter(models.Wishlist.id == wish_id).first()
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Không tìm thấy mục yêu thích")
+    db.delete(db_item)
+    db.commit()
+    return {"message": "Đã xóa khỏi danh sách yêu thích"}
+@app.post("/wishlist/", tags=["Yêu thích"])
+def toggle_wishlist(item: schemas.WishlistCreate, db: Session = Depends(get_db)):
+    # 1. Kiểm tra xem sách này đã được user này yêu thích chưa
+    exists = db.query(models.Wishlist).filter(
+        models.Wishlist.book_id == item.book_id, 
+        models.Wishlist.user_id == item.user_id
+    ).first()
+
+    if exists:
+        # 2. Nếu đã tồn tại -> XÓA (Hủy yêu thích)
+        db.delete(exists)
+        db.commit()
+        return {"message": "unfollowed", "status": False} # Trả về status để Frontend biết
+    
+    # 3. Nếu chưa tồn tại -> THÊM MỚI
+    db_item = models.Wishlist(**item.model_dump())
+    db.add(db_item)
+    db.commit()
+    return {"message": "followed", "status": True}

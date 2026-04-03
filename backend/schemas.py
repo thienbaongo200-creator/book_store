@@ -74,3 +74,6 @@ class OrderResponse(BaseModel):
     user_id: int
     class Config:
         from_attributes = True
+class WishlistCreate(BaseModel):
+    book_id: int
+    user_id: int

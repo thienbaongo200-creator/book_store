@@ -7,7 +7,7 @@ import Home from './pages/Home';
 import Admin from './pages/Admin';
 import Cart from './pages/Cart';
 import BookDetail from './pages/BookDetail'; 
-
+import Wishlist from './pages/Wishlist';
 function App() {
   const [search, setSearch] = useState("");
 
@@ -21,6 +21,7 @@ function App() {
           <Route path="/book/:id" element={<BookDetail />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/cart" element={<Cart />} />
+          <Route path="/wishlist" element={<Wishlist />} />
         </Routes>
       </div>
     </Router>

@@ -44,3 +44,9 @@ class Order(Base):
     status = Column(String(50), default="Pending") # Trạng thái: Chờ duyệt, Đã giao...
     user_id = Column(Integer, ForeignKey("users.id"))
     owner = relationship("User", back_populates="orders")
+class Wishlist(Base):
+    __tablename__ = "wishlist"
+    id = Column(Integer, primary_key=True, index=True)
+    book_id = Column(Integer, ForeignKey("books.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    book = relationship("Book")
