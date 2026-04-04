@@ -172,39 +172,45 @@ def toggle_wishlist(item: schemas.WishlistCreate, db: Session = Depends(get_db))
 
 @app.post("/orders/{user_id}", tags=["Đơn hàng"])
 def create_order(user_id: int, db: Session = Depends(get_db)):
-    # Lấy cart items kèm thông tin sách để tính tiền
-    cart_items = db.query(models.CartItem).options(joinedload(models.CartItem.book)).filter(models.CartItem.user_id == user_id).all()
-    
+    # 1. Lấy giỏ hàng kèm thông tin sách
+    cart_items = db.query(models.CartItem).options(
+        joinedload(models.CartItem.book)
+    ).filter(models.CartItem.user_id == user_id).all()
+
     if not cart_items:
         raise HTTPException(status_code=400, detail="Giỏ hàng trống!")
-    
+
     try:
+        # 2. Tính tổng tiền
         total = sum(item.book.price * item.quantity for item in cart_items)
-        
+
+        # 3. Tạo đơn hàng (Order)
         new_order = models.Order(user_id=user_id, total_price=total, status="Success")
         db.add(new_order)
-        db.flush() # Đẩy dữ liệu vào DB nhưng chưa commit hẳn để lấy ID
-        
-        # Xóa giỏ hàng
+        db.flush() 
+        for item in cart_items:
+            order_item = models.OrderItem(
+                order_id=new_order.id,
+                book_id=item.book_id,
+                quantity=item.quantity,
+                price_at_purchase=item.book.price 
+            )
+            db.add(order_item)
         db.query(models.CartItem).filter(models.CartItem.user_id == user_id).delete()
-        
+
         db.commit()
         db.refresh(new_order)
-        return {"message": "Thanh toán thành công!", "order_id": new_order.id, "total": total}
+        return {"message": "Thanh toán thành công!", "order_id": new_order.id, "total": new_order.total_price}
+        
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Lỗi hệ thống: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/orders/{user_id}", tags=["Đơn hàng"])
+@app.get("/orders/{user_id}", response_model=List[schemas.OrderResponse], tags=["Đơn hàng"])
 def get_user_order_history(user_id: int, db: Session = Depends(get_db)):
-    # Lấy lịch sử riêng của User
-    orders = db.query(models.Order).filter(models.Order.user_id == user_id).all()
-    return [{
-        "id": o.id,
-        "total": o.total_price,
-        "status": o.status,
-        "created_at": o.created_at # Lấy từ cột mới thêm trong model
-    } for o in orders]
+    return db.query(models.Order).options(
+        joinedload(models.Order.items).joinedload(models.OrderItem.book)
+    ).filter(models.Order.user_id == user_id).order_by(models.Order.id.desc()).all()
 @app.get("/orders/detail/{order_id}", tags=["Đơn hàng"])
 def get_order_detail(order_id: int, db: Session = Depends(get_db)):
     # Lấy thông tin đơn hàng

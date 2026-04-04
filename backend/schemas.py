@@ -63,13 +63,24 @@ class CartItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 # --- 5. ĐƠN HÀNG (ORDER) ---
+class OrderItemResponse(BaseModel):
+    id: int
+    book_id: int
+    quantity: int
+    price_at_purchase: int
+    book: "BookResponse" 
+    class Config:
+        from_attributes = True
+
 class OrderResponse(BaseModel):
     id: int
     total_price: int
     status: str
     user_id: int
-    created_at: Optional[datetime] = None
-    model_config = ConfigDict(from_attributes=True)
+    created_at: datetime
+    items: List[OrderItemResponse] = []
+    class Config:
+        from_attributes = True
 
 # --- 6. YÊU THÍCH (WISHLIST) ---
 class WishlistCreate(BaseModel):

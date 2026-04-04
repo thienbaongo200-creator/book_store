@@ -54,13 +54,18 @@ class Order(Base):
     total_price = Column(Integer)
     status = Column(String(50), default="Success") 
     user_id = Column(Integer, ForeignKey("users.id"))
-    
-    # Thêm cột này để hiện ngày đặt hàng ở Frontend
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # Quan hệ
     owner = relationship("User", back_populates="orders")
-
+    items = relationship("OrderItem", back_populates="order")
+class OrderItem(Base):
+    __tablename__ = "order_items"
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"))
+    book_id = Column(Integer, ForeignKey("books.id"))
+    quantity = Column(Integer)
+    price_at_purchase = Column(Integer)
+    order = relationship("Order", back_populates="items")
+    book = relationship("Book")
 class Wishlist(Base):
     __tablename__ = "wishlist"
     id = Column(Integer, primary_key=True, index=True)
