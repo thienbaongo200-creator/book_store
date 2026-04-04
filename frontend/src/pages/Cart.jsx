@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const Cart = () => {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false); // Trạng thái đang thanh toán
+  const navigate = useNavigate();
   const BASE_URL = "http://127.0.0.1:8000";
+  const USER_ID = 1; // Giả định ID người dùng là 1
 
   const fetchCart = async () => {
     try {
@@ -31,6 +34,36 @@ const Cart = () => {
     }
   };
 
+  // Hàm xử lý thanh toán
+  const handleCheckout = async () => {
+    if (cartItems.length === 0) return;
+
+    if (window.confirm("Bạn xác nhận thanh toán đơn hàng này?")) {
+      setIsProcessing(true);
+      try {
+        // Gọi API tạo đơn hàng (Backend của Bảo đã có logic xóa giỏ hàng trong này)
+        const response = await axios.post(`${BASE_URL}/orders/${USER_ID}`);
+        
+        if (response.status === 200) {
+          alert(`🎉 Thanh toán thành công!\nMã đơn hàng: ${response.data.order_id}\nTổng tiền: ${response.data.total.toLocaleString()}đ`);
+          
+          // Xóa sạch state giỏ hàng ở Frontend
+          setCartItems([]);
+          
+          // Chuyển hướng về trang chủ sau 1 giây
+          setTimeout(() => {
+            navigate("/");
+          }, 1000);
+        }
+      } catch (error) {
+        console.error("Lỗi thanh toán:", error);
+        alert(error.response?.data?.detail || "Thanh toán thất bại, vui lòng thử lại!");
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+  };
+
   const subtotal = cartItems.reduce((acc, item) => acc + (item.book.price * item.quantity), 0);
 
   if (loading) return (
@@ -42,7 +75,7 @@ const Cart = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <h2 className="text-3xl font-extrabold text-gray-900 mb-10 border-b pb-4">
-        Giỏ hàng của ban
+        Giỏ hàng của bạn
       </h2>
 
       {cartItems.length === 0 ? (
@@ -55,12 +88,10 @@ const Cart = () => {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
           
-          {/* DANH SÁCH SÁCH (Chiếm 2/3) */}
+          {/* DANH SÁCH SÁCH */}
           <div className="lg:col-span-2 space-y-6">
             {cartItems.map((item) => (
               <div key={item.id} className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all flex border border-gray-100 p-4">
-                
-                {/* ÉP FORM ẢNH: Giống hệt trang Home */}
                 <div className="w-32 h-44 bg-gray-50 flex items-center justify-center relative overflow-hidden rounded-xl flex-shrink-0">
                   <img 
                     src={`${BASE_URL}${item.book.image_url}`} 
@@ -70,7 +101,6 @@ const Cart = () => {
                   />
                 </div>
 
-                {/* THÔNG TIN SÁCH */}
                 <div className="ml-6 flex-1 flex flex-col justify-between py-2">
                   <div>
                     <h3 className="font-bold text-gray-900 text-lg line-clamp-2 leading-tight mb-1">
@@ -100,7 +130,7 @@ const Cart = () => {
             ))}
           </div>
 
-          {/* TỔNG KẾT ĐƠN HÀNG (Chiếm 1/3) */}
+          {/* TỔNG KẾT ĐƠN HÀNG */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm sticky top-8">
               <h3 className="text-xl font-bold text-gray-900 mb-6">Tóm tắt đơn hàng</h3>
@@ -122,10 +152,18 @@ const Cart = () => {
               </div>
 
               <button 
-                onClick={() => alert("Chức năng thanh toán đang phát triển!")}
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95"
+                onClick={handleCheckout}
+                disabled={isProcessing}
+                className={`w-full text-white py-4 rounded-2xl font-bold text-lg shadow-lg transition-all active:scale-95 flex justify-center items-center ${
+                  isProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100'
+                }`}
               >
-                Tiến hành thanh toán
+                {isProcessing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-3"></div>
+                    Đang xử lý...
+                  </>
+                ) : "Tiến hành thanh toán"}
               </button>
             </div>
           </div>

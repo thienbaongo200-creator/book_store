@@ -231,3 +231,46 @@ def toggle_wishlist(item: schemas.WishlistCreate, db: Session = Depends(get_db))
     db.add(db_item)
     db.commit()
     return {"message": "followed", "status": True}
+# --- CẬP NHẬT QUẢN LÝ ĐƠN HÀNG (ORDERS) ---
+
+@app.post("/orders/{user_id}", tags=["Đơn hàng"])
+def create_order(user_id: int, db: Session = Depends(get_db)):
+    # 1. Lấy món đồ trong giỏ kèm thông tin sách để tính tiền
+    cart_items = db.query(models.CartItem).filter(models.CartItem.user_id == user_id).all()
+    if not cart_items:
+        raise HTTPException(status_code=400, detail="Giỏ hàng trống!")
+    
+    # 2. Tính tổng tiền (Sử dụng thuộc tính price từ bảng Book liên kết)
+    total = sum(item.book.price * item.quantity for item in cart_items)
+    
+    # 3. Tạo đơn hàng mới (Đảm bảo bảng Order của bạn có trường total_price hoặc total)
+    new_order = models.Order(user_id=user_id, total_price=total, status="Success")
+    db.add(new_order)
+    db.commit() # Commit trước để lấy ID đơn hàng
+    
+    # 4. Xóa giỏ hàng
+    db.query(models.CartItem).filter(models.CartItem.user_id == user_id).delete()
+    db.commit()
+    
+    db.refresh(new_order)
+    return {"message": "Thanh toán thành công!", "order_id": new_order.id, "total": total}
+
+# ĐÂY LÀ HÀM BẢO ĐANG THIẾU: Lấy lịch sử đơn hàng của 1 User cụ thể
+@app.get("/orders/{user_id}", tags=["Đơn hàng"])
+def get_user_orders(user_id: int, db: Session = Depends(get_db)):
+    orders = db.query(models.Order).filter(models.Order.user_id == user_id).all()
+    # Chuyển đổi dữ liệu để khớp với Frontend (đổi total_price thành total nếu cần)
+    result = []
+    for o in orders:
+        result.append({
+            "id": o.id,
+            "total": o.total_price, # Ép tên trường về 'total' cho giống React
+            "status": o.status,
+            "created_at": o.created_at if hasattr(o, 'created_at') else None
+        })
+    return result
+
+@app.get("/orders/", tags=["Quản trị - Đơn hàng"])
+def list_all_orders(user_role: str = Query("user"), db: Session = Depends(get_db)):
+    check_admin_role(user_role) 
+    return db.query(models.Order).all()
