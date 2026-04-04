@@ -14,24 +14,26 @@ const Home = ({ searchTerm }) => {
 
   // --- PHẦN SỬA ĐỔI CHÍNH Ở ĐÂY ---
   const addToCart = async (bookId, title) => {
-    try {
-      // Gửi thêm user_id: 1 để khớp với schemas.CartItemCreate trong FastAPI
-      await axios.post(`${BASE_URL}/cart/`, {
-        book_id: bookId,
-        user_id: 1, // Giả định ID người dùng đang đăng nhập là 1
-        quantity: 1
-      });
-      alert(`Đã thêm "${title}" vào giỏ hàng thành công!`);
-    } catch (error) {
-      console.error("Lỗi chi tiết từ Backend:", error.response?.data);
-      
-      if (error.response?.status === 422) {
-        alert("Lỗi 422: Dữ liệu gửi lên không khớp với yêu cầu của Backend (Thiếu trường dữ liệu).");
-      } else {
-        alert("Không thể thêm vào giỏ, hãy kiểm tra lại kết nối Backend!");
-      }
-    }
-  };
+  // Lấy user từ localStorage giống như các trang khác
+  const savedUser = localStorage.getItem("user");
+  const user = savedUser ? JSON.parse(savedUser) : null;
+
+  if (!user) {
+    alert("Vui lòng đăng nhập để thêm vào giỏ hàng!");
+    return;
+  }
+
+  try {
+    await axios.post(`${BASE_URL}/cart/`, {
+      book_id: bookId,
+      user_id: user.id, // Dùng ID động ở đây
+      quantity: 1
+    });
+    alert(`Đã thêm "${title}" vào giỏ hàng!`);
+  } catch (error) {
+    alert("Không thể thêm vào giỏ hàng!");
+  }
+};
   // --------------------------------
 
   useEffect(() => {
@@ -75,7 +77,7 @@ const Home = ({ searchTerm }) => {
                 key={book.id}
                 className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 flex flex-col border border-gray-100 relative"
               >
-                <Link to={`/book/${book.id}`} className="flex-1 flex flex-col">
+                <Link to={`/books/${book.id}`} className="flex-1 flex flex-col">
                   <div className="h-64 bg-gray-50 flex items-center justify-center relative overflow-hidden p-4">
                     {book.image_url ? (
                       <img

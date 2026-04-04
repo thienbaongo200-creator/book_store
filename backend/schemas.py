@@ -1,7 +1,8 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
+from datetime import datetime
 
-# --- Cấu trúc dữ liệu Danh mục ---
+# --- 1. DANH MỤC (CATEGORY) ---
 class CategoryBase(BaseModel):
     name: str
 
@@ -10,11 +11,9 @@ class CategoryCreate(CategoryBase):
 
 class CategoryResponse(CategoryBase):
     id: int
-    
-    class Config:
-        from_attributes = True 
-        
-# --- Cấu trúc dữ liệu Sách ---
+    model_config = ConfigDict(from_attributes=True)
+
+# --- 2. SÁCH (BOOK) ---
 class BookBase(BaseModel):
     title: str
     author: str
@@ -26,31 +25,30 @@ class BookBase(BaseModel):
 class BookCreate(BookBase):
     pass
 
-class BookUpdate(BaseModel):
-    title: Optional[str] = None
-    author: Optional[str] = None
-    price: Optional[int] = None 
-    stock: Optional[int] = None
-    category_id: Optional[int] = None
-    image_url: Optional[str] = None
-
 class BookResponse(BookBase):
     id: int
-    
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
-# --- Cấu trúc dữ liệu Người dùng ---
+# --- 3. NGƯỜI DÙNG (USER) ---
+
+# Dùng cho trang Đăng ký (Register)
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    role: str = "user"
+
+# Dùng cho trang Đăng nhập (Login)
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
 class UserResponse(BaseModel):
     id: int
     username: str
     role: str
-    
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
-# --- Cấu trúc dữ liệu Giỏ hàng ---
-# ĐÃ THÊM: Lớp này để nhận dữ liệu từ Frontend gửi lên
+# --- 4. GIỎ HÀNG (CART) ---
 class CartItemCreate(BaseModel):
     book_id: int
     user_id: int  
@@ -62,18 +60,25 @@ class CartItemResponse(BaseModel):
     user_id: int
     quantity: int
     book: BookResponse 
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        from_attributes = True
-        
-# --- Cấu trúc dữ liệu Đơn hàng ---
+# --- 5. ĐƠN HÀNG (ORDER) ---
 class OrderResponse(BaseModel):
     id: int
     total_price: int
     status: str
     user_id: int
-    class Config:
-        from_attributes = True
+    created_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+# --- 6. YÊU THÍCH (WISHLIST) ---
 class WishlistCreate(BaseModel):
     book_id: int
     user_id: int
+
+class WishlistResponse(BaseModel):
+    id: int
+    book_id: int
+    user_id: int
+    book: BookResponse
+    model_config = ConfigDict(from_attributes=True)
