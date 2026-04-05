@@ -10,6 +10,22 @@ const Orders = () => {
   const navigate = useNavigate();
   const BASE_URL = "http://127.0.0.1:8000";
 
+  // Hàm format thời gian chuẩn Việt Nam (GMT+7)
+  const formatVNTime = (dateString) => {
+    if (!dateString) return "Không xác định";
+    const date = new Date(dateString);
+    return date.toLocaleString('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
   const getLoggedUser = () => {
     const savedUser = localStorage.getItem("user");
     return savedUser ? JSON.parse(savedUser) : null;
@@ -20,10 +36,11 @@ const Orders = () => {
       const user = getLoggedUser();
       if (!user) { navigate("/login"); return; }
       try {
-        // API này bây giờ sẽ trả về orders kèm theo mảng items (OrderItem)
         const response = await axios.get(`${BASE_URL}/orders/${user.id}`);
         const data = Array.isArray(response.data) ? response.data : [];
-        setOrders(data);
+        // Sắp xếp đơn hàng mới nhất lên đầu
+        const sortedData = data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        setOrders(sortedData);
       } catch (error) {
         console.error("Lỗi lấy lịch sử đơn hàng:", error);
       } finally {
@@ -71,7 +88,8 @@ const Orders = () => {
                 <div>
                   <p className="text-3xl font-black text-gray-900">{order.total_price?.toLocaleString()}đ</p>
                   <p className="text-gray-400 text-sm font-medium">
-                    {new Date(order.created_at).toLocaleString('vi-VN')}
+                    {/* ÁP DỤNG MÚI GIỜ VIỆT NAM TẠI ĐÂY */}
+                    {formatVNTime(order.created_at)}
                   </p>
                 </div>
                 <button 
@@ -99,7 +117,6 @@ const Orders = () => {
                 <button onClick={() => setShowModal(false)} className="text-gray-300 hover:text-red-500 transition-colors text-2xl font-black">✕</button>
               </div>
 
-              {/* HIỂN THỊ DANH SÁCH SÁCH ĐÃ MUA */}
               <div className="space-y-4 mb-8 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                 <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-2">Sản phẩm trong đơn</p>
                 {selectedOrder.items && selectedOrder.items.map((item) => (
@@ -127,7 +144,10 @@ const Orders = () => {
               <div className="space-y-4 border-t border-gray-100 pt-6">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 font-bold uppercase tracking-widest text-[10px]">Thời gian đặt:</span>
-                  <span className="font-bold text-gray-900">{new Date(selectedOrder.created_at).toLocaleString('vi-VN')}</span>
+                  <span className="font-bold text-gray-900">
+                    {/* ÁP DỤNG MÚI GIỜ VIỆT NAM TRONG MODAL */}
+                    {formatVNTime(selectedOrder.created_at)}
+                  </span>
                 </div>
                 <div className="flex justify-between items-end">
                   <span className="text-gray-900 font-black text-xl italic">Tổng thanh toán:</span>
@@ -141,7 +161,7 @@ const Orders = () => {
                 onClick={() => window.print()} 
                 className="w-full mt-10 py-5 bg-gray-900 text-white rounded-[24px] font-black shadow-xl hover:bg-indigo-600 transition-all active:scale-95 flex items-center justify-center gap-3"
               >
-                <span></span> XUẤT HÓA ĐƠN PDF
+                🖨️ XUẤT HÓA ĐƠN PDF
               </button>
             </div>
           </div>
