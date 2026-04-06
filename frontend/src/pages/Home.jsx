@@ -41,17 +41,20 @@ const Home = ({ searchTerm }) => {
     setLoading(true);
     getBooks(searchTerm, page, limit, category)
       .then((res) => {
-        setBooks(res.data);
+        // LẤY DỮ LIỆU TỪ res.data.books THAY VÌ res.data
+        const booksData = res.data.books || []; 
+        setBooks(booksData);
         
-        // Tạo danh sách sách HOT (Lấy 5 cuốn ngẫu nhiên từ danh sách hiện tại nếu không có API riêng)
-        if (!searchTerm && page === 1) {
-          const shuffled = [...res.data].sort(() => 0.5 - Math.random());
+        // Tạo danh sách sách HOT từ mảng booksData vừa lấy được
+        if (!searchTerm && page === 1 && booksData.length > 0) {
+          const shuffled = [...booksData].sort(() => 0.5 - Math.random());
           setHotBooks(shuffled.slice(0, 5));
         }
         setLoading(false);
       })
       .catch((err) => {
         console.error("Lỗi:", err);
+        setBooks([]); // Reset về mảng rỗng nếu lỗi
         setLoading(false);
       });
   }, [searchTerm, page, category]);

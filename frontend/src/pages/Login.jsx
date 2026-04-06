@@ -5,14 +5,13 @@ import axios from 'axios';
 const Login = () => {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
-    const [showPassword, setShowPassword] = useState(false); // State để ẩn/hiện mật khẩu
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
     
     const BASE_URL = "http://127.0.0.1:8000";
 
-    // Hàm tùy chỉnh thông báo trống
     const handleInvalid = (e) => {
         e.target.setCustomValidity("Vui lòng điền vào trường này");
     };
@@ -33,9 +32,33 @@ const Login = () => {
             });
 
             if (response.data) {
-                localStorage.setItem("user", JSON.stringify(response.data));
-                alert(`Chào mừng ${response.data.username} quay trở lại!`);
-                navigate("/");
+                const userData = response.data;
+
+                // 1. Lưu toàn bộ thông tin user
+                localStorage.setItem("user", JSON.stringify(userData));
+                
+                // 2. Lưu Token
+                const token = userData.access_token || userData.token;
+                if (token) {
+                    localStorage.setItem("token", token);
+                }
+
+                // 3. Lưu role và username để tiện kiểm tra nhanh
+                localStorage.setItem("role", userData.role);
+                localStorage.setItem("username", userData.username);
+
+                alert(`Chào mừng ${userData.username} quay trở lại!`);
+
+                // --- LOGIC ĐIỀU HƯỚNG QUAN TRỌNG ---
+                if (userData.role === 'admin') {
+                    // Nếu là Admin, đẩy thẳng vào trang dashboard
+                    navigate("/admin");
+                } else {
+                    // Nếu là User thường, về trang chủ
+                    navigate("/");
+                }
+                
+                // Reload để cập nhật trạng thái Navbar/Sidebar nếu cần
                 window.location.reload();
             }
         } catch (err) {
@@ -70,10 +93,10 @@ const Login = () => {
                         />
                     </div>
                     
-                    <div className="relative"> {/* Thêm relative để định vị con mắt */}
+                    <div className="relative">
                         <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Password</label>
                         <input 
-                            type={showPassword ? "text" : "password"} // Thay đổi type dựa trên state
+                            type={showPassword ? "text" : "password"}
                             required
                             onInvalid={handleInvalid}
                             onInput={handleInput}
@@ -81,7 +104,6 @@ const Login = () => {
                             placeholder="••••••••"
                             onChange={(e) => setPassword(e.target.value)}
                         />
-                        {/* Nút con mắt */}
                         <button 
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
