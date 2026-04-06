@@ -6,13 +6,17 @@ const api = axios.create({
     "Content-Type": "application/json",
   },
 });
-
-export const getBooks = (search = "", page = 1, limit = 8) => {
+const BASE_URL = "http://127.0.0.1:8000";
+export const getBooks = (search = "", page = 1, limit = 8, category = "") => {
   const skip = (page - 1) * limit;
-  const url = search 
-    ? `/books/?search=${encodeURIComponent(search)}&skip=${skip}&limit=${limit}`
-    : `/books/?skip=${skip}&limit=${limit}`;
-  return api.get(url);
+  // Đảm bảo truyền đúng category vào query
+  const params = new URLSearchParams({
+    search: search || "",
+    category: category || "",
+    skip: skip,
+    limit: limit
+  });
+  return axios.get(`${BASE_URL}/books/?${params.toString()}`);
 };
 
 export const createBook = (bookData) => {

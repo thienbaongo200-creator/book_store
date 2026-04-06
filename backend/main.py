@@ -86,10 +86,22 @@ def list_categories(db: Session = Depends(get_db)):
     return db.query(models.Category).all()
 
 @app.get("/books/", response_model=List[schemas.BookResponse], tags=["Sách"])
-def read_books(search: Optional[str] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def read_books(
+    search: Optional[str] = None,
+    category: Optional[str] = None, 
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db)
+):
     query = db.query(models.Book)
+    
     if search:
         query = query.filter(models.Book.title.contains(search))
+    
+    # SỬA TẠI ĐÂY: Join với bảng Category để lọc theo tên (name)
+    if category and category.strip() != "": 
+        query = query.join(models.Category).filter(models.Category.name == category)
+        
     return query.offset(skip).limit(limit).all()
 
 @app.get("/books/{book_id}", response_model=schemas.BookResponse, tags=["Sách"])

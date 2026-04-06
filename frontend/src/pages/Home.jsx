@@ -10,7 +10,8 @@ const Home = ({ searchTerm }) => {
   const [hotBooks, setHotBooks] = useState([]); // Danh sách sách hot ngẫu nhiên
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0); // Vị trí slide hiện tại
-  
+  const [category, setCategory] = useState("");
+
   const BASE_URL = "http://127.0.0.1:8000";
 
   // --- LOGIC GIỎ HÀNG ---
@@ -38,7 +39,7 @@ const Home = ({ searchTerm }) => {
   // --- FETCH DATA ---
   useEffect(() => {
     setLoading(true);
-    getBooks(searchTerm, page, limit)
+    getBooks(searchTerm, page, limit, category)
       .then((res) => {
         setBooks(res.data);
         
@@ -53,7 +54,7 @@ const Home = ({ searchTerm }) => {
         console.error("Lỗi:", err);
         setLoading(false);
       });
-  }, [searchTerm, page]);
+  }, [searchTerm, page, category]);
 
   // --- LOGIC CAROUSEL (Tự động lướt mỗi 3s) ---
   useEffect(() => {
@@ -166,6 +167,31 @@ const Home = ({ searchTerm }) => {
           {books.length} sản phẩm
         </span>
       </div>
+          {/* Bộ lọc danh mục */}
+            <div className="mb-10 flex items-center gap-4 bg-gray-50 p-4 rounded-3xl border border-gray-100 shadow-sm">
+            <label className="font-black italic text-gray-700 uppercase text-sm tracking-widest">
+              Phân loại:
+            </label>
+            <select 
+            value={category} 
+            onChange={(e) => { 
+              setPage(1); 
+              setCategory(e.target.value); 
+            }}
+            className="bg-white border-2 border-gray-200 text-gray-900 text-sm font-bold rounded-2xl focus:ring-indigo-500 focus:border-indigo-500 block p-3 px-6 transition-all outline-none"
+          >
+            <option value="">Tất cả sách</option>
+            <option value="Văn học & Tiểu thuyết">Văn học & Tiểu thuyết</option>
+            <option value="Kinh tế & Quản trị">Kinh tế & Quản trị</option>
+            <option value="Kỹ năng sống">Kỹ năng sống</option>
+            <option value="Tâm lý học">Tâm lý học</option>
+            <option value="Khoa học & Đời sống">Khoa học & Đời sống</option>
+            <option value="Ngoại ngữ (IELTS/TOEIC)">Ngoại ngữ (IELTS/TOEIC)</option>
+            <option value="Truyện tranh & Manga">Truyện tranh & Manga</option>
+            <option value="Lập trình & Công nghệ">Lập trình & Công nghệ</option>
+            <option value="Nuôi dạy con">Nuôi dạy con</option>
+          </select>
+          </div>
 
       {loading ? (
         <div className="flex flex-col justify-center items-center h-80">
