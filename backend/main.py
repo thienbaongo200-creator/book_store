@@ -86,32 +86,6 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 def list_categories(db: Session = Depends(get_db)):
     return db.query(models.Category).all()
 
-@app.get("/books/", response_model=List[schemas.BookResponse], tags=["Sách"])
-def read_books(
-    search: Optional[str] = None,
-    category: Optional[str] = None, 
-    skip: int = 0, 
-    limit: int = 100, 
-    db: Session = Depends(get_db)
-):
-    query = db.query(models.Book)
-    
-    if search:
-        query = query.filter(models.Book.title.contains(search))
-    
-    # SỬA TẠI ĐÂY: Join với bảng Category để lọc theo tên (name)
-    if category and category.strip() != "": 
-        query = query.join(models.Category).filter(models.Category.name == category)
-        
-    return query.offset(skip).limit(limit).all()
-
-@app.get("/books/{book_id}", response_model=schemas.BookResponse, tags=["Sách"])
-def read_book(book_id: int, db: Session = Depends(get_db)):
-    db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
-    if not db_book:
-        raise HTTPException(status_code=404, detail="Không tìm thấy sách!")
-    return db_book
-
 @app.post("/books/")
 async def create_book(
     title: str = Form(...),
@@ -199,12 +173,24 @@ def delete_book(book_id: int, x_user_role: Optional[str] = Header(None), db: Ses
     db.delete(db_book)
     db.commit()
     return {"message": "Xóa thành công"}
+# Gộp tất cả logic vào một hàm duy nhất để tránh xung đột
 @app.get("/books/", tags=["Sách"])
-def get_books(page: int = 1, limit: int = 20, search: Optional[str] = None, db: Session = Depends(get_db)):
+def get_books(
+    page: int = 1, 
+    limit: int = 20, 
+    search: Optional[str] = None, 
+    category: Optional[str] = None, # Thêm tham số category vào đây
+    db: Session = Depends(get_db)
+):
     query = db.query(models.Book)
+    
+    # 1. Lọc theo tìm kiếm tên sách
     if search:
-        # icontains giúp tìm kiếm không phân biệt hoa thường
         query = query.filter(models.Book.title.icontains(search))
+    
+    # 2. Lọc theo danh mục (Sửa lỗi lọc danh mục Bảo đang gặp)
+    if category and category.strip() != "":
+        query = query.join(models.Category).filter(models.Category.name == category)
         
     total_count = query.count()
     offset = (page - 1) * limit
@@ -217,6 +203,12 @@ def get_books(page: int = 1, limit: int = 20, search: Optional[str] = None, db: 
         "current_page": page,
         "total_items": total_count
     }
+@app.get("/books/{book_id}", response_model=schemas.BookResponse, tags=["Sách"])
+def read_book(book_id: int, db: Session = Depends(get_db)):
+    db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    if not db_book:
+        raise HTTPException(status_code=404, detail="Không tìm thấy sách!")
+    return db_book
 # --- 3. QUẢN LÝ GIỎ HÀNG ---
 
 @app.get("/cart/{user_id}", response_model=List[schemas.CartItemResponse], tags=["Giỏ hàng"])
