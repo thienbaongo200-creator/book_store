@@ -22,28 +22,41 @@ const Login = () => {
     };
 
     const handleLogin = async (e) => {
-        e.preventDefault();
-        setError("");
-        setLoading(true);
-        
-        try {
-            const response = await axios.post(`${BASE_URL}/login`, {
-                username: username,
-                password: password
-            });
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    
+    try {
+        const response = await axios.post(`${BASE_URL}/login`, {
+            username: username,
+            password: password
+        });
 
-            if (response.data) {
-                localStorage.setItem("user", JSON.stringify(response.data));
-                alert(`Chào mừng ${response.data.username} quay trở lại!`);
-                navigate("/");
-                window.location.reload();
+        if (response.data) {
+            // 1. Lưu toàn bộ thông tin user để hiển thị UI (tên, avatar...)
+            localStorage.setItem("user", JSON.stringify(response.data));
+            
+            // 2. QUAN TRỌNG: Lưu riêng Token để các request Admin sử dụng
+            // Giả sử Backend trả về token trong trường 'access_token' hoặc 'token'
+            const token = response.data.access_token || response.data.token;
+            if (token) {
+                localStorage.setItem("token", token);
             }
-        } catch (err) {
-            setError(err.response?.data?.detail || "Sai tài khoản hoặc mật khẩu!");
-        } finally {
-            setLoading(false);
+
+            // 3. Lưu username để hiển thị lời chào ở trang Admin
+            localStorage.setItem("username", response.data.username);
+
+            alert(`Chào mừng ${response.data.username} quay trở lại!`);
+            navigate("/");
+            window.location.reload();
         }
-    };
+    } catch (err) {
+        // Hiển thị lỗi chi tiết từ Backend nếu có
+        setError(err.response?.data?.detail || "Sai tài khoản hoặc mật khẩu!");
+    } finally {
+        setLoading(false);
+    }
+};
 
     return (
         <div className="min-h-[80vh] flex items-center justify-center py-20 px-4 bg-gray-50">

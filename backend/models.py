@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -19,6 +19,7 @@ class Book(Base):
     price = Column(Integer, default=0) 
     image_url = Column(String(555), nullable=True)
     stock = Column(Integer, default=0)
+    description = Column(Text, nullable=True)
     category_id = Column(Integer, ForeignKey("categories.id"))
     
     # Quan hệ

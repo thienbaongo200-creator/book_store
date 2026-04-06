@@ -1,23 +1,25 @@
 import os
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, File, UploadFile, Form
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session, joinedload
-
+from fastapi import Header
+import shutil
 # Import từ các file local của Team
 from . import models, schemas
 from .database import SessionLocal, engine
 
 # Tự động tạo bảng trong Database (MySQL/SQLite)
 models.Base.metadata.create_all(bind=engine)
-
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_DIR = os.path.join(BASE_DIR, "static", "images")
 app = FastAPI(
     title="Hệ thống Quản lý Nhà sách - Team Bảo",
     description="API quản lý sách tích hợp phân quyền và bảo mật người dùng",
     version="1.6.0"
 )
-
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 # 1. Cấu hình CORS - Giúp React kết nối được với FastAPI
 app.add_middleware(
     CORSMiddleware,
@@ -31,7 +33,6 @@ app.add_middleware(
 current_dir = os.path.dirname(os.path.realpath(__file__))
 static_path = os.path.join(current_dir, "static")
 os.makedirs(os.path.join(static_path, "images"), exist_ok=True)
-app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 # Dependency: Kết nối Database cho mỗi Request
 def get_db():
@@ -85,13 +86,6 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 def list_categories(db: Session = Depends(get_db)):
     return db.query(models.Category).all()
 
-@app.get("/books/", response_model=List[schemas.BookResponse], tags=["Sách"])
-def read_books(search: Optional[str] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    query = db.query(models.Book)
-    if search:
-        query = query.filter(models.Book.title.contains(search))
-    return query.offset(skip).limit(limit).all()
-
 @app.get("/books/{book_id}", response_model=schemas.BookResponse, tags=["Sách"])
 def read_book(book_id: int, db: Session = Depends(get_db)):
     db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
@@ -99,15 +93,111 @@ def read_book(book_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Không tìm thấy sách!")
     return db_book
 
-@app.post("/books/", response_model=schemas.BookResponse, tags=["Quản trị - Sách"])
-def create_book(book: schemas.BookCreate, user_role: str = Query("user"), db: Session = Depends(get_db)):
-    check_admin_role(user_role)
-    db_book = models.Book(**book.model_dump())
-    db.add(db_book)
+@app.post("/books/")
+async def create_book(
+    title: str = Form(...),
+    author: str = Form(...),
+    price: int = Form(...),
+    stock: int = Form(...),
+    description: str = Form(""),
+    category_id: int = Form(...),
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    x_user_role: str = Header(None)
+):
+    # Kiểm tra quyền admin của Bảo ở đây...
+
+    # Đảm bảo thư mục tồn tại
+    if not os.path.exists(UPLOAD_DIR):
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+    # Lưu file vào backend/static/images/
+    file_path = os.path.join(UPLOAD_DIR, image.filename)
+    with open(file_path, "wb+") as buffer:
+        shutil.copyfileobj(image.file, buffer)
+
+    # Lưu vào database đường dẫn để Frontend truy cập
+    # Vì mình sẽ mount thư mục static này, nên chỉ cần lưu: /static/images/ten_file.jpg
+    db_image_url = f"/static/images/{image.filename}"
+    
+    new_book = models.Book(
+        title=title,
+        author=author,
+        price=price,
+        stock=stock,
+        description=description,
+        category_id=category_id,
+        image_url=db_image_url
+    )
+    db.add(new_book)
     db.commit()
-    db.refresh(db_book)
+    db.refresh(new_book)
+    return new_book
+
+# --- QUAN TRỌNG: THÊM ROUTE SỬA SÁCH (FIX LỖI 405) ---
+@app.put("/books/{book_id}", tags=["Quản trị - Sách"])
+async def update_book(
+    book_id: int,
+    title: str = Form(...),
+    author: str = Form(...),
+    price: int = Form(...),
+    stock: int = Form(...),
+    description: str = Form(""),
+    category_id: int = Form(...),
+    image: Optional[UploadFile] = File(None), # Ảnh là tùy chọn khi sửa
+    db: Session = Depends(get_db),
+    x_user_role: str = Header(None)
+):
+    check_admin_role(x_user_role)
+    db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    if not db_book:
+        raise HTTPException(status_code=404, detail="Sách không tồn tại")
+
+    # Nếu có upload ảnh mới
+    if image:
+        file_path = os.path.join(UPLOAD_DIR, image.filename)
+        with open(file_path, "wb+") as buffer:
+            shutil.copyfileobj(image.file, buffer)
+        db_book.image_url = f"/static/images/{image.filename}"
+
+    db_book.title = title
+    db_book.author = author
+    db_book.price = price
+    db_book.stock = stock
+    db_book.description = description
+    db_book.category_id = category_id
+
+    db.commit()
     return db_book
 
+# --- ROUTE XÓA SÁCH ---
+@app.delete("/books/{book_id}", tags=["Quản trị - Sách"])
+def delete_book(book_id: int, x_user_role: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    check_admin_role(x_user_role) # Bảo nên thêm kiểm tra quyền ở đây cho an toàn
+    db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    if not db_book:
+        raise HTTPException(status_code=404, detail="Không tìm thấy sách")
+    db.delete(db_book)
+    db.commit()
+    return {"message": "Xóa thành công"}
+@app.get("/books/", tags=["Sách"])
+def get_books(page: int = 1, limit: int = 20, search: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(models.Book)
+    if search:
+        # icontains giúp tìm kiếm không phân biệt hoa thường
+        query = query.filter(models.Book.title.icontains(search))
+        
+    total_count = query.count()
+    offset = (page - 1) * limit
+    books = query.offset(offset).limit(limit).all()
+    
+    import math
+    return {
+        "books": books,
+        "total_pages": math.ceil(total_count / limit) if limit > 0 else 1,
+        "current_page": page,
+        "total_items": total_count
+    }
 # --- 3. QUẢN LÝ GIỎ HÀNG ---
 
 @app.get("/cart/{user_id}", response_model=List[schemas.CartItemResponse], tags=["Giỏ hàng"])
