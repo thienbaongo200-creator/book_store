@@ -320,7 +320,12 @@ def get_order_detail(order_id: int, db: Session = Depends(get_db)):
     }
 # --- 6. QUẢN TRỊ (ADMIN) ---
 
+# File main.py của Backend
 @app.get("/admin/orders/", tags=["Quản trị - Đơn hàng"])
-def list_all_orders_admin(user_role: str = Query("user"), db: Session = Depends(get_db)):
-    check_admin_role(user_role)
-    return db.query(models.Order).all()
+def list_all_orders_admin(
+    x_user_role: Optional[str] = Header(None), # Lấy role từ Header giống các hàm khác
+    db: Session = Depends(get_db)
+):
+    check_admin_role(x_user_role)
+    # Thêm joinedload để lấy luôn tên khách hàng (User) hiển thị cho đẹp
+    return db.query(models.Order).options(joinedload(models.Order.owner)).all()
