@@ -25,6 +25,9 @@ const AdminLayout = () => {
           <Link to="/admin/orders" className="block px-4 py-3 rounded-xl hover:bg-indigo-600 transition-all font-bold">
             Đơn hàng
           </Link>
+          <Link to="/admin/users" className="block px-4 py-3 rounded-xl hover:bg-indigo-600 transition-all font-bold">
+            Nguoi dung
+          </Link>
         </nav>
 
         <div className="p-4 border-t border-gray-800">

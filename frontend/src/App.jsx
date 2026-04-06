@@ -11,6 +11,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import AdminLayout from './pages/AdminLayout'; 
 import AdminOrders from './pages/AdminOrders';
+import AdminUsers from './pages/AdminUsers';
 function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [user, setUser] = useState(null);
@@ -78,6 +79,7 @@ function App() {
             } />
             <Route path="books" element={<Admin />} />
             <Route path="orders" element={<AdminOrders />} />
+            <Route path="users" element={<AdminUsers />} />
           </Route>
         </Routes>
       </div>

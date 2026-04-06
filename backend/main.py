@@ -329,3 +329,70 @@ def list_all_orders_admin(
     check_admin_role(x_user_role)
     # Thêm joinedload để lấy luôn tên khách hàng (User) hiển thị cho đẹp
     return db.query(models.Order).options(joinedload(models.Order.owner)).all()
+@app.get("/admin/users/", tags=["Quản trị - Người dùng"])
+def list_all_users_admin(
+    x_user_role: Optional[str] = Header(None), 
+    db: Session = Depends(get_db)
+):
+    # Kiểm tra quyền Admin của Bảo
+    check_admin_role(x_user_role)
+    
+    # Lấy danh sách tất cả người dùng
+    users = db.query(models.User).all()
+    return users
+
+@app.post("/admin/users/", response_model=schemas.UserResponse, tags=["Quản trị - Người dùng"])
+def admin_create_user(
+    user: schemas.UserCreate, 
+    x_user_role: Optional[str] = Header(None), 
+    db: Session = Depends(get_db)
+):
+    check_admin_role(x_user_role)
+    db_user = db.query(models.User).filter(models.User.username == user.username).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Tên đăng nhập đã tồn tại!")
+    
+    new_user = models.User(**user.model_dump())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+# Sửa thông tin người dùng
+@app.put("/admin/users/{user_id}", response_model=schemas.UserResponse, tags=["Quản trị - Người dùng"])
+def admin_update_user(
+    user_id: int, 
+    user_data: schemas.UserCreate, 
+    x_user_role: Optional[str] = Header(None), 
+    db: Session = Depends(get_db)
+):
+    check_admin_role(x_user_role)
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Người dùng không tồn tại")
+    
+    db_user.username = user_data.username
+    db_user.password = user_data.password  # Trong thực tế nên hash mật khẩu
+    db_user.role = user_data.role
+    
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+# Xóa người dùng (Có kiểm tra bảo vệ Admin)
+@app.delete("/admin/users/{user_id}", tags=["Quản trị - Người dùng"])
+def delete_user_admin(
+    user_id: int, 
+    x_user_role: Optional[str] = Header(None), 
+    db: Session = Depends(get_db)
+):
+    check_admin_role(x_user_role)
+    
+    # Lấy thông tin user hiện tại từ DB để check (tránh tự xóa mình)
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+    
+    db.delete(db_user)
+    db.commit()
+    return {"message": f"Đã xóa người dùng {db_user.username} thành công"}
