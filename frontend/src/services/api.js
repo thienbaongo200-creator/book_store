@@ -1,35 +1,44 @@
 import axios from 'axios';
 
-const api = axios.create({
-  baseURL: "http://127.0.0.1:8000",
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
 const BASE_URL = "http://127.0.0.1:8000";
+
+const api = axios.create({
+  baseURL: BASE_URL,
+  headers: { "Content-Type": "application/json" },
+});
+
+// Hàm lấy header admin từ localStorage
+const getAuthHeaders = () => {
+  const role = localStorage.getItem("role") || "admin"; 
+  return { "x-user-role": role };
+};
+
+/* --- QUẢN LÝ DANH MỤC --- */
+export const getCategories = () => api.get('/categories/');
+
+export const createCategory = (name) => 
+  api.post('/categories/', { name }, { headers: getAuthHeaders() });
+
+export const deleteCategory = (id) => 
+  api.delete(`/categories/${id}`, { headers: getAuthHeaders() });
+
+/* --- QUẢN LÝ SÁCH --- */
 export const getBooks = (search = "", page = 1, limit = 8, category = "") => {
-  const skip = (page - 1) * limit;
-  // Đảm bảo truyền đúng category vào query
-  const params = new URLSearchParams({
-    search: search || "",
-    category: category || "",
-    skip: skip,
-    limit: limit
+  return api.get('/books/', {
+    params: { search, page, limit, category }
   });
-  return axios.get(`${BASE_URL}/books/?${params.toString()}`);
 };
 
-export const createBook = (bookData) => {
-  return api.post('/books/', bookData);
-};
+export const createBook = (formData) => api.post('/books/', formData, {
+  headers: { ...getAuthHeaders(), "Content-Type": "multipart/form-data" }
+});
 
-export const deleteBook = (id) => {
-  return api.delete(`/books/${id}`);
-};
+export const updateBook = (id, formData) => api.put(`/books/${id}`, formData, {
+  headers: { ...getAuthHeaders(), "Content-Type": "multipart/form-data" }
+});
 
-export const updateBook = (id, bookData) => {
-  return api.put(`/books/${id}`, bookData);
-};
-
+export const deleteBook = (id) => api.delete(`/books/${id}`, {
+  headers: getAuthHeaders()
+});
 
 export default api;

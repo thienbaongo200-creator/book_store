@@ -7,6 +7,7 @@ const AdminLayout = () => {
 
   const handleLogout = () => {
     localStorage.removeItem("user");
+    localStorage.removeItem("role"); // Xóa luôn role khi logout cho an toàn
     navigate('/login');
   };
 
@@ -25,8 +26,12 @@ const AdminLayout = () => {
           <Link to="/admin/orders" className="block px-4 py-3 rounded-xl hover:bg-indigo-600 transition-all font-bold">
             Đơn hàng
           </Link>
+          {/* Đường dẫn tới trang Quản lý danh mục đã sửa tên cho chuẩn */}
+          <Link to="/admin/categories" className="block px-4 py-3 rounded-xl hover:bg-indigo-600 transition-all font-bold">
+            Danh Mục
+          </Link>
           <Link to="/admin/users" className="block px-4 py-3 rounded-xl hover:bg-indigo-600 transition-all font-bold">
-            Nguoi dung
+            Người Dùng
           </Link>
         </nav>
 
@@ -42,15 +47,18 @@ const AdminLayout = () => {
         <header className="bg-white shadow-sm px-8 py-4 flex justify-between items-center">
           <h1 className="text-xl font-black text-gray-800 uppercase">Hệ thống quản trị</h1>
           <div className="flex items-center gap-3">
-            <span className="text-sm font-bold text-gray-500">Xin chào, {user?.username}</span>
-            <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold">
-              B
+            <div className="text-right">
+              <p className="text-xs text-gray-400 font-bold uppercase">{user?.role || 'Admin'}</p>
+              <p className="text-sm font-bold text-gray-700">Xin chào, {user?.username}</p>
+            </div>
+            <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold border-2 border-indigo-200">
+              {user?.username?.charAt(0).toUpperCase() || 'A'}
             </div>
           </div>
         </header>
 
         <main className="p-8">
-          {/* Outlet sẽ là nơi hiển thị trang Quản lý sách hoặc các trang con khác */}
+          {/* Outlet sẽ hiển thị nội dung của AdminCategories hoặc các trang admin khác */}
           <Outlet />
         </main>
       </div>

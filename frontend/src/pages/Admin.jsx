@@ -7,104 +7,70 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingBook, setEditingBook] = useState(null);
-  
   const [selectedFile, setSelectedFile] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
-  const itemsPerPage = 8; // Chỉnh xuống 8 để dễ thấy hiệu ứng phân trang
+  const itemsPerPage = 8;
 
   const [formData, setFormData] = useState({
-    title: "", author: "", price: 0, stock: 10, description: "", category_id: 1
+    title: "", author: "", price: 0, stock: 10, description: "", category_id: ""
   });
 
   const BASE_URL = "http://127.0.0.1:8000";
 
   const getAuthHeader = () => {
-    const token = localStorage.getItem("token");
-    const userString = localStorage.getItem("user");
-    const user = JSON.parse(userString || "{}");
-    return { 
-        "Authorization": `Bearer ${token}`,
-        "X-User-Role": user.role || "user" 
-    };
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    return { "x-user-role": user.role || "admin" };
   };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const config = {
-        params: { page: currentPage, limit: itemsPerPage, search: searchTerm },
-        headers: getAuthHeader() 
-      };
-
       const [booksRes, catsRes] = await Promise.all([
-        axios.get(`${BASE_URL}/books/`, config),
+        axios.get(`${BASE_URL}/books/`, {
+          params: { page: currentPage, limit: itemsPerPage, search: searchTerm }
+        }),
         axios.get(`${BASE_URL}/categories/`)
       ]);
 
-      if (booksRes.data && booksRes.data.books) {
-        setBooks(booksRes.data.books);
-        setTotalPages(booksRes.data.total_pages || 1);
-      } else {
-        const data = Array.isArray(booksRes.data) ? booksRes.data : [];
-        setBooks(data);
-        setTotalPages(1);
+      setBooks(booksRes.data.books || []);
+      setTotalPages(booksRes.data.total_pages || 1);
+      setCategories(catsRes.data || []);
+      
+      if (!editingBook && catsRes.data.length > 0 && !formData.category_id) {
+        setFormData(prev => ({...prev, category_id: catsRes.data[0].id}));
       }
-      setCategories(Array.isArray(catsRes.data) ? catsRes.data : []);
     } catch (error) {
       console.error("Lỗi fetch:", error);
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchTerm]);
+  }, [currentPage, searchTerm, editingBook]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Cuộn lên đầu trang khi đổi trang
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [currentPage]);
-
-  const getCategoryName = (id) => {
-    const cat = categories.find(c => c.id === id);
-    return cat ? cat.name : `ID: ${id}`;
-  };
-
-  const handleAddClick = () => {
-    setEditingBook(null);
-    setSelectedFile(null);
-    setFormData({ 
-      title: "", author: "", price: 0, stock: 10, description: "", 
-      category_id: categories[0]?.id || 1 
-    });
-    setShowModal(true);
-  };
-
-  const handleEditClick = (book) => {
+  const handleEdit = (book) => {
     setEditingBook(book);
-    setSelectedFile(null);
-    setFormData({ 
-      title: book.title, 
-      author: book.author, 
-      price: book.price, 
-      stock: book.stock, 
-      description: book.description || "", 
-      category_id: book.category_id 
+    setFormData({
+      title: book.title,
+      author: book.author,
+      price: book.price,
+      stock: book.stock,
+      description: book.description,
+      category_id: book.category_id
     });
     setShowModal(true);
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("Bảo có chắc chắn muốn xóa cuốn sách này không?")) {
+    if (window.confirm("Bảo có chắc muốn xóa cuốn sách này không?")) {
       try {
-        await axios.delete(`${BASE_URL}/books/${id}`, { headers: getAuthHeader() });
+        await axios.delete(`${BASE_URL}/books/${id}/`, { headers: getAuthHeader() });
         alert("Xóa thành công!");
         fetchData();
-      } catch (err) { 
-        alert(err.response?.status === 403 ? "Bạn không có quyền quản trị!" : "Lỗi khi xóa!"); 
+      } catch (err) {
+        alert("Lỗi khi xóa! Bảo kiểm tra lại Backend nhé.");
       }
     }
   };
@@ -112,232 +78,158 @@ const Admin = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const data = new FormData();
-    data.append("title", formData.title);
-    data.append("author", formData.author);
-    data.append("price", formData.price);
-    data.append("stock", formData.stock);
-    data.append("description", formData.description);
-    data.append("category_id", formData.category_id);
-    
-    if (selectedFile) {
-      data.append("image", selectedFile);
-    }
+    Object.keys(formData).forEach(key => data.append(key, formData[key]));
+    if (selectedFile) data.append("image", selectedFile);
 
     try {
-      const config = { 
-        headers: { 
-          ...getAuthHeader(),
-          "Content-Type": "multipart/form-data"
-        } 
-      };
-
+      const config = { headers: { ...getAuthHeader(), "Content-Type": "multipart/form-data" } };
       if (editingBook) {
-        await axios.put(`${BASE_URL}/books/${editingBook.id}`, data, config);
+        await axios.put(`${BASE_URL}/books/${editingBook.id}/`, data, config);
         alert("Cập nhật thành công!");
       } else {
-        if (!selectedFile) return alert("Vui lòng chọn ảnh cho sách mới!");
+        if (!selectedFile) return alert("Bảo ơi, chọn ảnh cho sách đã!");
         await axios.post(`${BASE_URL}/books/`, data, config);
-        alert("Thêm sách mới thành công!");
+        alert("Thêm sách thành công!");
       }
-      
       setShowModal(false);
-      setSelectedFile(null);
       fetchData();
     } catch (err) {
-      alert("Lỗi: " + (err.response?.data?.detail || "Vui lòng kiểm tra lại!"));
+      alert("Lỗi: " + (err.response?.data?.detail || "Kiểm tra lại dữ liệu!"));
     }
   };
 
-  if (loading && books.length === 0) return (
-    <div className="flex justify-center items-center h-screen bg-gray-50">
-      <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-indigo-600"></div>
-    </div>
-  );
-
   return (
-    <div className="p-8 bg-gray-50 min-h-screen font-sans text-gray-800">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-6">
-          <div>
-            <h1 className="text-4xl font-black text-gray-900 italic">Quản lý Kho Sách<span className="text-indigo-600">.</span></h1>
-            <p className="text-gray-400 font-bold text-sm uppercase tracking-widest mt-1">Admin: {localStorage.getItem("username") || "Bảo"}</p>
-            <div className="mt-4">
-              <input 
-                type="text" 
-                placeholder="Tìm tên sách..." 
-                className="pl-4 pr-10 py-3 rounded-xl border-none shadow-inner bg-white w-64 focus:ring-2 focus:ring-indigo-500 transition-all font-bold"
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              />
-            </div>
-          </div>
-          <button onClick={handleAddClick} className="bg-gray-900 text-white px-8 py-4 rounded-[20px] font-black shadow-xl hover:bg-indigo-600 transition-all active:scale-95 flex items-center gap-2">
-            <span className="text-2xl">+</span> THÊM SÁCH MỚI
-          </button>
+    <div className="p-8 bg-gray-50 min-h-screen">
+      {/* HEADER QUẢN LÝ */}
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">Quản Lý Sách</h1>
+          <p className="text-gray-500">Chào Bảo, hôm nay kho sách thế nào?</p>
         </div>
-
-        {/* Bảng danh sách */}
-        <div className="bg-white rounded-[40px] shadow-2xl overflow-hidden border border-gray-100">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-gray-900 text-white uppercase text-[10px] tracking-[0.2em] font-black">
-                  <th className="p-6">Thông tin sách</th>
-                  <th className="p-6">Tác giả</th>
-                  <th className="p-6">Thể loại</th>
-                  <th className="p-6">Giá & Kho</th>
-                  <th className="p-6 text-center">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {books.map((book) => (
-                  <tr key={book.id} className="hover:bg-indigo-50/30 transition-colors group">
-                    <td className="p-6">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 shadow-sm border border-gray-200">
-                          <img 
-                            src={book.image_url?.startsWith('http') ? book.image_url : `${BASE_URL}${book.image_url}`} 
-                            alt={book.title} 
-                            className="w-full h-full object-cover" 
-                            onError={(e) => e.target.src = "https://via.placeholder.com/150x200?text=No+Img"} 
-                          />
-                        </div>
-                        <div>
-                          <p className="font-black text-gray-900 group-hover:text-indigo-600">#{book.id} - {book.title}</p>
-                          <p className="text-[10px] text-gray-400 font-bold uppercase">Mã: {book.id}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-6 text-gray-600 font-bold italic">{book.author}</td>
-                    <td className="p-6">
-                      <span className="text-indigo-600 font-black text-xs uppercase">{getCategoryName(book.category_id)}</span>
-                    </td>
-                    <td className="p-6">
-                      <div className="font-black text-gray-900">{book.price.toLocaleString()}đ</div>
-                      <div className="text-[10px] text-gray-400 uppercase tracking-tighter">{book.stock} bản</div>
-                    </td>
-                    <td className="p-6 text-center">
-                      <div className="flex justify-center gap-3">
-                        <button onClick={() => handleEditClick(book)} className="bg-gray-100 hover:bg-emerald-500 hover:text-white p-2 rounded-lg transition-all font-bold text-xs px-3">SỬA</button>
-                        <button onClick={() => handleDelete(book.id)} className="bg-gray-100 hover:bg-red-500 hover:text-white p-2 rounded-lg transition-all font-bold text-xs px-3">XÓA</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* THANH PHÂN TRANG (PAGINATION) */}
-        <div className="mt-12 flex justify-center items-center gap-3 pb-20">
-          <button 
-            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-            disabled={currentPage === 1}
-            className="px-6 py-3 rounded-2xl bg-white shadow-lg text-gray-900 font-black italic hover:bg-indigo-600 hover:text-white transition-all disabled:opacity-20 disabled:cursor-not-allowed"
-          >
-            ← TRƯỚC
-          </button>
-
-          <div className="flex gap-2 mx-4">
-            {[...Array(totalPages)].map((_, index) => {
-              const pageNumber = index + 1;
-              if (
-                pageNumber === 1 || 
-                pageNumber === totalPages || 
-                (pageNumber >= currentPage - 1 && pageNumber <= currentPage + 1)
-              ) {
-                return (
-                  <button
-                    key={pageNumber}
-                    onClick={() => setCurrentPage(pageNumber)}
-                    className={`w-12 h-12 rounded-2xl font-black transition-all shadow-md ${
-                      currentPage === pageNumber 
-                        ? "bg-gray-900 text-white scale-110 shadow-indigo-300" 
-                        : "bg-white text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    {pageNumber}
-                  </button>
-                );
-              } else if (pageNumber === currentPage - 2 || pageNumber === currentPage + 2) {
-                return <span key={pageNumber} className="text-gray-400 font-black flex items-end pb-2">...</span>;
-              }
-              return null;
-            })}
-          </div>
-
-          <button 
-            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-            disabled={currentPage === totalPages}
-            className="px-6 py-3 rounded-2xl bg-white shadow-lg text-gray-900 font-black italic hover:bg-indigo-600 hover:text-white transition-all disabled:opacity-20 disabled:cursor-not-allowed"
-          >
-            SAU →
-          </button>
-        </div>
-
-        {/* Modal Form */}
-        {showModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl p-10 relative">
-              <button onClick={() => setShowModal(false)} className="absolute top-8 right-8 text-gray-300 hover:text-red-500 text-2xl font-black">✕</button>
-              <h2 className="text-3xl font-black italic mb-8">{editingBook ? "Chỉnh sửa sách" : "Thêm sách mới"}</h2>
-
-              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="col-span-2">
-                  <label className="block text-xs font-black text-gray-400 uppercase mb-2">Tiêu đề sách</label>
-                  <input type="text" required className="w-full px-6 py-4 rounded-2xl bg-gray-50 font-bold focus:ring-2 focus:ring-indigo-500 outline-none border-none" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase mb-2">Tác giả</label>
-                  <input type="text" required className="w-full px-6 py-4 rounded-2xl bg-gray-50 font-bold focus:ring-2 focus:ring-indigo-500 outline-none border-none" value={formData.author} onChange={(e) => setFormData({...formData, author: e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase mb-2">Thể loại</label>
-                  <select 
-                    className="w-full px-6 py-4 rounded-2xl bg-gray-50 font-bold border-none focus:ring-2 focus:ring-indigo-500 outline-none"
-                    value={formData.category_id}
-                    onChange={(e) => setFormData({...formData, category_id: parseInt(e.target.value)})}
-                  >
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-xs font-black text-gray-400 uppercase mb-2">
-                    {editingBook ? "Thay đổi ảnh bìa (Để trống nếu giữ nguyên)" : "Tải ảnh bìa lên"}
-                  </label>
-                  <input 
-                    type="file" 
-                    accept="image/*"
-                    className="w-full px-6 py-4 rounded-2xl bg-gray-50 font-bold focus:ring-2 focus:ring-indigo-500 outline-none border-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200"
-                    onChange={(e) => setSelectedFile(e.target.files[0])} 
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase mb-2">Giá bán (VNĐ)</label>
-                  <input type="number" required className="w-full px-6 py-4 rounded-2xl bg-gray-50 font-bold focus:ring-2 focus:ring-indigo-500 outline-none border-none" value={formData.price} onChange={(e) => setFormData({...formData, price: parseInt(e.target.value)})} />
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase mb-2">Số lượng kho</label>
-                  <input type="number" required className="w-full px-6 py-4 rounded-2xl bg-gray-50 font-bold focus:ring-2 focus:ring-indigo-500 outline-none border-none" value={formData.stock} onChange={(e) => setFormData({...formData, stock: parseInt(e.target.value)})} />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-black text-gray-400 uppercase mb-2">Mô tả sách</label>
-                  <textarea rows="3" className="w-full px-6 py-4 rounded-2xl bg-gray-50 font-bold focus:ring-2 focus:ring-indigo-500 outline-none border-none" value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} />
-                </div>
-                <button type="submit" className="col-span-2 bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-gray-900 transition-all mt-4 shadow-lg shadow-indigo-200">
-                  {editingBook ? "CẬP NHẬT DỮ LIỆU" : "XÁC NHẬN THÊM MỚI"}
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
+        <button 
+          onClick={() => { setEditingBook(null); setShowModal(true); }}
+          className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 shadow-lg transition-all"
+        >
+          + Thêm Sách Mới
+        </button>
       </div>
+
+      {/* THANH TÌM KIẾM */}
+      <div className="mb-6">
+        <input 
+          type="text" 
+          placeholder="Tìm tên sách hoặc tác giả..." 
+          className="w-full max-w-lg px-6 py-3 border-none rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-400 outline-none"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      {/* BẢNG DANH SÁCH SÁCH */}
+      <div className="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100">
+        <table className="w-full text-left">
+          <thead className="bg-gray-50 border-b">
+            <tr>
+              <th className="p-5 font-bold text-gray-600">Bìa Sách</th>
+              <th className="p-5 font-bold text-gray-600">Thông Tin</th>
+              <th className="p-5 font-bold text-gray-600">Giá Bán</th>
+              <th className="p-5 font-bold text-gray-600 text-center">Tồn Kho</th>
+              <th className="p-5 font-bold text-gray-600 text-center">Hành Động</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan="5" className="p-10 text-center text-gray-400">Đang cập nhật kho...</td></tr>
+            ) : books.map(book => (
+              <tr key={book.id} className="border-b last:border-none hover:bg-indigo-50/30 transition">
+                <td className="p-5">
+                  <img 
+                    src={book.image_url.startsWith('http') ? book.image_url : `${BASE_URL}${book.image_url}`} 
+                    alt={book.title} 
+                    className="w-14 h-20 object-cover rounded-xl shadow-sm border"
+                  />
+                </td>
+                <td className="p-5">
+                  <div className="font-bold text-gray-800">{book.title}</div>
+                  <div className="text-xs text-gray-400 mt-1 uppercase tracking-wider">{book.author}</div>
+                </td>
+                <td className="p-5 text-indigo-600 font-bold text-lg">
+                  {book.price.toLocaleString()}đ
+                </td>
+                <td className="p-5 text-center">
+                  <span className={`px-4 py-1 rounded-full text-xs font-bold ${book.stock > 5 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {book.stock} cuốn
+                  </span>
+                </td>
+                <td className="p-5">
+                  <div className="flex justify-center gap-2">
+                    <button onClick={() => handleEdit(book)} className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg transition">Sửa</button>
+                    <button onClick={() => handleDelete(book.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition">Xóa</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* PHÂN TRANG */}
+      <div className="flex justify-center mt-8 gap-2">
+        {[...Array(totalPages)].map((_, i) => (
+          <button 
+            key={i} 
+            onClick={() => setCurrentPage(i + 1)}
+            className={`w-10 h-10 rounded-xl font-bold transition-all ${currentPage === i + 1 ? 'bg-indigo-600 text-white shadow-md scale-110' : 'bg-white text-gray-400 hover:bg-gray-100'}`}
+          >
+            {i + 1}
+          </button>
+        ))}
+      </div>
+
+      {/* MODAL THÊM/SỬA SÁCH */}
+      {showModal && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[2rem] p-8 w-full max-w-2xl shadow-2xl overflow-y-auto max-h-[90vh]">
+            <h2 className="text-2xl font-black text-gray-800 mb-6">{editingBook ? "Chỉnh sửa sách" : "Thêm sách mới"}</h2>
+            <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-6">
+              <div className="col-span-2">
+                <label className="text-sm font-bold text-gray-500 mb-2 block">Tên sách</label>
+                <input required type="text" className="w-full px-5 py-3 rounded-2xl bg-gray-50 border-none outline-indigo-400" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-sm font-bold text-gray-500 mb-2 block">Tác giả</label>
+                <input required type="text" className="w-full px-5 py-3 rounded-2xl bg-gray-50 border-none outline-indigo-400" value={formData.author} onChange={(e) => setFormData({...formData, author: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-sm font-bold text-gray-500 mb-2 block">Danh mục</label>
+                <select className="w-full px-5 py-3 rounded-2xl bg-gray-50 border-none outline-indigo-400" value={formData.category_id} onChange={(e) => setFormData({...formData, category_id: e.target.value})}>
+                  {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-bold text-gray-500 mb-2 block">Giá bán (VNĐ)</label>
+                <input required type="number" className="w-full px-5 py-3 rounded-2xl bg-gray-50 border-none outline-indigo-400" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-sm font-bold text-gray-500 mb-2 block">Số lượng</label>
+                <input required type="number" className="w-full px-5 py-3 rounded-2xl bg-gray-50 border-none outline-indigo-400" value={formData.stock} onChange={(e) => setFormData({...formData, stock: e.target.value})} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-sm font-bold text-gray-500 mb-2 block">Mô tả chi tiết</label>
+                <textarea rows="3" className="w-full px-5 py-3 rounded-2xl bg-gray-50 border-none outline-indigo-400" value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-sm font-bold text-gray-500 mb-2 block">Ảnh bìa</label>
+                <input type="file" className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" onChange={(e) => setSelectedFile(e.target.files[0])} />
+              </div>
+              <div className="col-span-2 flex justify-end gap-4 mt-4">
+                <button type="button" onClick={() => setShowModal(false)} className="px-8 py-3 rounded-2xl font-bold bg-gray-100 text-gray-500 hover:bg-gray-200 transition">Hủy</button>
+                <button type="submit" className="px-8 py-3 rounded-2xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition">Lưu thay đổi</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

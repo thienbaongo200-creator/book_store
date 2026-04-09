@@ -12,6 +12,8 @@ import Register from './pages/Register';
 import AdminLayout from './pages/AdminLayout'; 
 import AdminOrders from './pages/AdminOrders';
 import AdminUsers from './pages/AdminUsers';
+import AdminCategories from './pages/AdminCategories'; // Đã có import
+
 function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [user, setUser] = useState(null);
@@ -67,19 +69,21 @@ function App() {
               </AdminRoute>
             }
           >
-            {/* Khi truy cập /admin: 
-                AdminLayout sẽ hiện ra, và phần <Outlet /> bên trong nó 
-                sẽ hiển thị nội dung Dashboard (Thống kê) 
-            */}
+            {/* Dashboard mặc định */}
             <Route index element={
               <div className="bg-white p-6 rounded-2xl shadow-sm">
                 <h2 className="text-2xl font-black mb-4">Dashboard Thống kê</h2>
                 <p className="text-gray-500 font-medium">Chào mừng Bảo quay trở lại hệ thống quản trị!</p>
               </div>
             } />
+
             <Route path="books" element={<Admin />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="users" element={<AdminUsers />} />
+
+            {/* --- DÒNG QUAN TRỌNG MÌNH VỪA THÊM VÀO ĐÂY --- */}
+            <Route path="categories" element={<AdminCategories />} />
+            
           </Route>
         </Routes>
       </div>

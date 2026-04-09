@@ -1,40 +1,43 @@
 import os
-from fastapi import FastAPI, Depends, HTTPException, Query, File, UploadFile, Form
+import shutil
+import math
 from typing import List, Optional
+from pydantic import BaseModel
+from fastapi import FastAPI, Depends, HTTPException, Query, File, UploadFile, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session, joinedload
-from fastapi import Header
-import shutil
+
 # Import từ các file local của Team
 from . import models, schemas
 from .database import SessionLocal, engine
 
-# Tự động tạo bảng trong Database (MySQL/SQLite)
+# --- CẤU HÌNH HỆ THỐNG ---
 models.Base.metadata.create_all(bind=engine)
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "static", "images")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 app = FastAPI(
     title="Hệ thống Quản lý Nhà sách - Team Bảo",
     description="API quản lý sách tích hợp phân quyền và bảo mật người dùng",
-    version="1.6.0"
+    version="1.8.0"
 )
-app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
-# 1. Cấu hình CORS - Giúp React kết nối được với FastAPI
+
+# --- CẤU HÌNH CORS (PHẢI ĐẶT TRƯỚC CÁC ROUTE) ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 2. Cấu hình Static Files (Lưu ảnh sách)
-current_dir = os.path.dirname(os.path.realpath(__file__))
-static_path = os.path.join(current_dir, "static")
-os.makedirs(os.path.join(static_path, "images"), exist_ok=True)
+# Cấu hình Static Files
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
-# Dependency: Kết nối Database cho mỗi Request
+# --- DEPENDENCIES & HELPERS ---
 def get_db():
     db = SessionLocal()
     try:
@@ -42,13 +45,12 @@ def get_db():
     finally:
         db.close()
 
-# Hàm kiểm tra phân quyền Admin
-def check_admin_role(user_role: str):
+def check_admin_role(user_role: Optional[str]):
     if user_role != "admin":
-        raise HTTPException(
-            status_code=403, 
-            detail="Bạn không có quyền Quản trị viên!"
-        )
+        raise HTTPException(status_code=403, detail="Bạn không có quyền Quản trị viên!")
+
+class CategoryCreate(BaseModel):
+    name: str
 
 # --- 1. HỆ THỐNG & TÀI KHOẢN ---
 
@@ -61,349 +63,218 @@ def login(user_data: schemas.UserLogin, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == user_data.username).first()
     if not user or user.password != user_data.password:
         raise HTTPException(status_code=400, detail="Sai tài khoản hoặc mật khẩu")
-    
-    # Trả về để Frontend lưu vào LocalStorage
     return {
         "id": user.id,
         "username": user.username,
         "role": user.role,
         "name": user.username
     }
+
 @app.post("/users/", response_model=schemas.UserResponse, tags=["Tài khoản"])
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(models.User.username == user.username).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Tên đăng nhập đã tồn tại!")
-    
     new_user = models.User(**user.model_dump())
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     return new_user
-# --- 2. QUẢN LÝ DANH MỤC & SÁCH ---
+
+# --- 2. QUẢN LÝ DANH MỤC ---
 
 @app.get("/categories/", response_model=List[schemas.CategoryResponse], tags=["Danh mục"])
 def list_categories(db: Session = Depends(get_db)):
     return db.query(models.Category).all()
 
-@app.post("/books/")
-async def create_book(
-    title: str = Form(...),
-    author: str = Form(...),
-    price: int = Form(...),
-    stock: int = Form(...),
-    description: str = Form(""),
-    category_id: int = Form(...),
-    image: UploadFile = File(...),
+@app.post("/categories/", tags=["Danh mục"])
+def create_category(
+    cat: CategoryCreate, 
     db: Session = Depends(get_db),
-    x_user_role: str = Header(None)
+    x_user_role: Optional[str] = Header(None)
 ):
-    # Kiểm tra quyền admin của Bảo ở đây...
+    check_admin_role(x_user_role)
+    new_cat = models.Category(name=cat.name)
+    db.add(new_cat)
+    db.commit()
+    db.refresh(new_cat)
+    return new_cat
 
-    # Đảm bảo thư mục tồn tại
-    if not os.path.exists(UPLOAD_DIR):
-        os.makedirs(UPLOAD_DIR, exist_ok=True)
+@app.put("/categories/{cat_id}/", tags=["Danh mục"])
+def update_category(
+    cat_id: int, 
+    cat: CategoryCreate, 
+    x_user_role: Optional[str] = Header(None), 
+    db: Session = Depends(get_db)
+):
+    check_admin_role(x_user_role)
+    db_cat = db.query(models.Category).filter(models.Category.id == cat_id).first()
+    if not db_cat:
+        raise HTTPException(status_code=404, detail="Không tìm thấy danh mục")
+    db_cat.name = cat.name
+    db.commit()
+    return db_cat
 
-    # Lưu file vào backend/static/images/
+@app.delete("/categories/{cat_id}/", tags=["Danh mục"])
+def delete_category(
+    cat_id: int, 
+    x_user_role: Optional[str] = Header(None), 
+    db: Session = Depends(get_db)
+):
+    check_admin_role(x_user_role)
+    db_cat = db.query(models.Category).filter(models.Category.id == cat_id).first()
+    if not db_cat:
+        raise HTTPException(status_code=404, detail="Không tìm thấy danh mục")
+    
+    # Ràng buộc: Không xóa danh mục nếu có sách
+    if db.query(models.Book).filter(models.Book.category_id == cat_id).count() > 0:
+        raise HTTPException(status_code=400, detail="Danh mục có sách, không thể xóa!")
+        
+    db.delete(db_cat)
+    db.commit()
+    return {"message": "Xóa danh mục thành công"}
+
+# --- 3. QUẢN LÝ SÁCH ---
+
+@app.get("/books/", tags=["Sách"])
+def get_books(
+    page: int = 1, limit: int = 20, 
+    search: Optional[str] = None, 
+    category: Optional[str] = None, 
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.Book)
+    if search:
+        query = query.filter(models.Book.title.icontains(search))
+    if category and category.strip() != "":
+        query = query.join(models.Category).filter(models.Category.name == category)
+        
+    total_count = query.count()
+    books = query.offset((page - 1) * limit).limit(limit).all()
+    return {
+        "books": books,
+        "total_pages": math.ceil(total_count / limit) if limit > 0 else 1,
+        "total_items": total_count
+    }
+
+@app.post("/books/", tags=["Quản trị - Sách"])
+async def create_book(
+    title: str = Form(...), author: str = Form(...), price: int = Form(...), 
+    stock: int = Form(...), description: str = Form(""), category_id: int = Form(...),
+    image: UploadFile = File(...), db: Session = Depends(get_db), 
+    x_user_role: Optional[str] = Header(None)
+):
+    check_admin_role(x_user_role)
     file_path = os.path.join(UPLOAD_DIR, image.filename)
     with open(file_path, "wb+") as buffer:
         shutil.copyfileobj(image.file, buffer)
-
-    # Lưu vào database đường dẫn để Frontend truy cập
-    # Vì mình sẽ mount thư mục static này, nên chỉ cần lưu: /static/images/ten_file.jpg
-    db_image_url = f"/static/images/{image.filename}"
     
     new_book = models.Book(
-        title=title,
-        author=author,
-        price=price,
-        stock=stock,
-        description=description,
-        category_id=category_id,
-        image_url=db_image_url
+        title=title, author=author, price=price, stock=stock,
+        description=description, category_id=category_id,
+        image_url=f"/static/images/{image.filename}"
     )
     db.add(new_book)
     db.commit()
     db.refresh(new_book)
     return new_book
 
-# --- QUAN TRỌNG: THÊM ROUTE SỬA SÁCH (FIX LỖI 405) ---
-@app.put("/books/{book_id}", tags=["Quản trị - Sách"])
+@app.put("/books/{book_id}/", tags=["Quản trị - Sách"])
 async def update_book(
-    book_id: int,
-    title: str = Form(...),
-    author: str = Form(...),
-    price: int = Form(...),
-    stock: int = Form(...),
-    description: str = Form(""),
-    category_id: int = Form(...),
-    image: Optional[UploadFile] = File(None), # Ảnh là tùy chọn khi sửa
-    db: Session = Depends(get_db),
-    x_user_role: str = Header(None)
+    book_id: int, title: str = Form(...), author: str = Form(...), 
+    price: int = Form(...), stock: int = Form(...), description: str = Form(""), 
+    category_id: int = Form(...), image: Optional[UploadFile] = File(None), 
+    db: Session = Depends(get_db), x_user_role: Optional[str] = Header(None)
 ):
     check_admin_role(x_user_role)
     db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if not db_book:
-        raise HTTPException(status_code=404, detail="Sách không tồn tại")
+        raise HTTPException(status_code=404, detail="Không tìm thấy sách")
+    
+    db_book.title, db_book.author, db_book.price = title, author, price
+    db_book.stock, db_book.description, db_book.category_id = stock, description, category_id
 
-    # Nếu có upload ảnh mới
     if image:
         file_path = os.path.join(UPLOAD_DIR, image.filename)
         with open(file_path, "wb+") as buffer:
             shutil.copyfileobj(image.file, buffer)
         db_book.image_url = f"/static/images/{image.filename}"
 
-    db_book.title = title
-    db_book.author = author
-    db_book.price = price
-    db_book.stock = stock
-    db_book.description = description
-    db_book.category_id = category_id
-
     db.commit()
     return db_book
 
-# --- ROUTE XÓA SÁCH ---
-@app.delete("/books/{book_id}", tags=["Quản trị - Sách"])
+@app.delete("/books/{book_id}/", tags=["Quản trị - Sách"])
 def delete_book(book_id: int, x_user_role: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    check_admin_role(x_user_role) # Bảo nên thêm kiểm tra quyền ở đây cho an toàn
+    check_admin_role(x_user_role)
     db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if not db_book:
         raise HTTPException(status_code=404, detail="Không tìm thấy sách")
     db.delete(db_book)
     db.commit()
-    return {"message": "Xóa thành công"}
-# Gộp tất cả logic vào một hàm duy nhất để tránh xung đột
-@app.get("/books/", tags=["Sách"])
-def get_books(
-    page: int = 1, 
-    limit: int = 20, 
-    search: Optional[str] = None, 
-    category: Optional[str] = None, # Thêm tham số category vào đây
-    db: Session = Depends(get_db)
-):
-    query = db.query(models.Book)
-    
-    # 1. Lọc theo tìm kiếm tên sách
-    if search:
-        query = query.filter(models.Book.title.icontains(search))
-    
-    # 2. Lọc theo danh mục (Sửa lỗi lọc danh mục Bảo đang gặp)
-    if category and category.strip() != "":
-        query = query.join(models.Category).filter(models.Category.name == category)
-        
-    total_count = query.count()
-    offset = (page - 1) * limit
-    books = query.offset(offset).limit(limit).all()
-    
-    import math
-    return {
-        "books": books,
-        "total_pages": math.ceil(total_count / limit) if limit > 0 else 1,
-        "current_page": page,
-        "total_items": total_count
-    }
-@app.get("/books/{book_id}", response_model=schemas.BookResponse, tags=["Sách"])
-def read_book(book_id: int, db: Session = Depends(get_db)):
-    db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
-    if not db_book:
-        raise HTTPException(status_code=404, detail="Không tìm thấy sách!")
-    return db_book
-# --- 3. QUẢN LÝ GIỎ HÀNG ---
+    return {"message": "Xóa sách thành công"}
 
-@app.get("/cart/{user_id}", response_model=List[schemas.CartItemResponse], tags=["Giỏ hàng"])
-def get_user_cart(user_id: int, db: Session = Depends(get_db)):
-    # Bổ sung joinedload để lấy luôn thông tin sách đi kèm
-    return db.query(models.CartItem).options(
-        joinedload(models.CartItem.book)
-    ).filter(models.CartItem.user_id == user_id).all()
+# --- 4. GIỎ HÀNG & YÊU THÍCH ---
 
 @app.post("/cart/", response_model=schemas.CartItemResponse, tags=["Giỏ hàng"])
 def add_to_cart(item: schemas.CartItemCreate, db: Session = Depends(get_db)):
     db_item = db.query(models.CartItem).filter(
-        models.CartItem.book_id == item.book_id,
-        models.CartItem.user_id == item.user_id 
+        models.CartItem.book_id == item.book_id, 
+        models.CartItem.user_id == item.user_id
     ).first()
-    
     if db_item:
         db_item.quantity += item.quantity
     else:
         db_item = models.CartItem(**item.model_dump())
         db.add(db_item)
-    
     db.commit()
     db.refresh(db_item)
     return db_item
 
-@app.delete("/cart/{item_id}", tags=["Giỏ hàng"])
-def delete_cart_item(item_id: int, db: Session = Depends(get_db)):
-    db_item = db.query(models.CartItem).filter(models.CartItem.id == item_id).first()
-    if not db_item:
-        raise HTTPException(status_code=404, detail="Mục không tồn tại!")
-    db.delete(db_item)
-    db.commit()
-    return {"message": "Đã xóa khỏi giỏ hàng"}
+@app.get("/cart/{user_id}", response_model=List[schemas.CartItemResponse], tags=["Giỏ hàng"])
+def get_user_cart(user_id: int, db: Session = Depends(get_db)):
+    return db.query(models.CartItem).options(joinedload(models.CartItem.book)).filter(models.CartItem.user_id == user_id).all()
 
-# --- 4. QUẢN LÝ YÊU THÍCH (WISHLIST) ---
-
-@app.get("/wishlist/{user_id}", tags=["Yêu thích"])
-def get_user_wishlist(user_id: int, db: Session = Depends(get_db)):
-    return db.query(models.Wishlist).filter(models.Wishlist.user_id == user_id).options(
-        joinedload(models.Wishlist.book)
-    ).all()
-
-@app.post("/wishlist/toggle", tags=["Yêu thích"])
-def toggle_wishlist(item: schemas.WishlistCreate, db: Session = Depends(get_db)):
-    exists = db.query(models.Wishlist).filter(
-        models.Wishlist.book_id == item.book_id, 
-        models.Wishlist.user_id == item.user_id
-    ).first()
-
-    if exists:
-        db.delete(exists)
-        db.commit()
-        return {"status": False, "message": "Đã bỏ yêu thích"}
-    
-    db_item = models.Wishlist(**item.model_dump())
-    db.add(db_item)
-    db.commit()
-    return {"status": True, "message": "Đã thêm vào yêu thích"}
-
-# --- 5. QUẢN LÝ ĐƠN HÀNG (ORDERS) ---
+# --- 5. ĐƠN HÀNG (USER & ADMIN) ---
 
 @app.post("/orders/{user_id}", tags=["Đơn hàng"])
 def create_order(user_id: int, db: Session = Depends(get_db)):
-    # 1. Lấy giỏ hàng kèm thông tin sách
-    cart_items = db.query(models.CartItem).options(
-        joinedload(models.CartItem.book)
-    ).filter(models.CartItem.user_id == user_id).all()
-
+    cart_items = db.query(models.CartItem).options(joinedload(models.CartItem.book)).filter(models.CartItem.user_id == user_id).all()
     if not cart_items:
         raise HTTPException(status_code=400, detail="Giỏ hàng trống!")
+    
+    total = sum(item.book.price * item.quantity for item in cart_items)
+    new_order = models.Order(user_id=user_id, total_price=total, status="Success")
+    db.add(new_order)
+    db.flush()
+    
+    for item in cart_items:
+        db.add(models.OrderItem(
+            order_id=new_order.id, book_id=item.book_id,
+            quantity=item.quantity, price_at_purchase=item.book.price
+        ))
+    
+    db.query(models.CartItem).filter(models.CartItem.user_id == user_id).delete()
+    db.commit()
+    return {"message": "Thanh toán thành công!", "order_id": new_order.id}
 
-    try:
-        # 2. Tính tổng tiền
-        total = sum(item.book.price * item.quantity for item in cart_items)
-
-        # 3. Tạo đơn hàng (Order)
-        new_order = models.Order(user_id=user_id, total_price=total, status="Success")
-        db.add(new_order)
-        db.flush() 
-        for item in cart_items:
-            order_item = models.OrderItem(
-                order_id=new_order.id,
-                book_id=item.book_id,
-                quantity=item.quantity,
-                price_at_purchase=item.book.price 
-            )
-            db.add(order_item)
-        db.query(models.CartItem).filter(models.CartItem.user_id == user_id).delete()
-
-        db.commit()
-        db.refresh(new_order)
-        return {"message": "Thanh toán thành công!", "order_id": new_order.id, "total": new_order.total_price}
-        
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/orders/{user_id}", response_model=List[schemas.OrderResponse], tags=["Đơn hàng"])
+@app.get("/orders/{user_id}", tags=["Đơn hàng"])
 def get_user_order_history(user_id: int, db: Session = Depends(get_db)):
     return db.query(models.Order).options(
         joinedload(models.Order.items).joinedload(models.OrderItem.book)
     ).filter(models.Order.user_id == user_id).order_by(models.Order.id.desc()).all()
-@app.get("/orders/detail/{order_id}", tags=["Đơn hàng"])
-def get_order_detail(order_id: int, db: Session = Depends(get_db)):
-    # Lấy thông tin đơn hàng
-    order = db.query(models.Order).filter(models.Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
-    
-    # Ở đây nếu Bảo có bảng OrderItem (lưu lịch sử sách đã mua), hãy join vào.
-    # Nếu chưa có bảng OrderItem, tạm thời trả về thông tin cơ bản.
-    return {
-        "id": order.id,
-        "total": order.total_price,
-        "status": order.status,
-        "created_at": order.created_at,
-        # Giả sử Bảo muốn hiển thị lời nhắn hoặc thông tin thêm
-        "note": "Cảm ơn bạn đã mua sắm!" 
-    }
-# --- 6. QUẢN TRỊ (ADMIN) ---
 
-# File main.py của Backend
 @app.get("/admin/orders/", tags=["Quản trị - Đơn hàng"])
-def list_all_orders_admin(
-    x_user_role: Optional[str] = Header(None), # Lấy role từ Header giống các hàm khác
-    db: Session = Depends(get_db)
-):
+def get_all_orders_admin(x_user_role: Optional[str] = Header(None), db: Session = Depends(get_db)):
     check_admin_role(x_user_role)
-    # Thêm joinedload để lấy luôn tên khách hàng (User) hiển thị cho đẹp
-    return db.query(models.Order).options(joinedload(models.Order.owner)).all()
+    # Thêm joinedload(models.Order.owner) vào đây
+    return db.query(models.Order).options(
+        joinedload(models.Order.owner), # Lấy thông tin khách hàng
+        joinedload(models.Order.items).joinedload(models.OrderItem.book)
+    ).order_by(models.Order.id.desc()).all()
+
+# --- 6. QUẢN TRỊ NGƯỜI DÙNG ---
+
 @app.get("/admin/users/", tags=["Quản trị - Người dùng"])
-def list_all_users_admin(
-    x_user_role: Optional[str] = Header(None), 
-    db: Session = Depends(get_db)
-):
-    # Kiểm tra quyền Admin của Bảo
+def list_all_users_admin(x_user_role: Optional[str] = Header(None), db: Session = Depends(get_db)):
     check_admin_role(x_user_role)
-    
-    # Lấy danh sách tất cả người dùng
-    users = db.query(models.User).all()
-    return users
-
-@app.post("/admin/users/", response_model=schemas.UserResponse, tags=["Quản trị - Người dùng"])
-def admin_create_user(
-    user: schemas.UserCreate, 
-    x_user_role: Optional[str] = Header(None), 
-    db: Session = Depends(get_db)
-):
-    check_admin_role(x_user_role)
-    db_user = db.query(models.User).filter(models.User.username == user.username).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Tên đăng nhập đã tồn tại!")
-    
-    new_user = models.User(**user.model_dump())
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return new_user
-
-# Sửa thông tin người dùng
-@app.put("/admin/users/{user_id}", response_model=schemas.UserResponse, tags=["Quản trị - Người dùng"])
-def admin_update_user(
-    user_id: int, 
-    user_data: schemas.UserCreate, 
-    x_user_role: Optional[str] = Header(None), 
-    db: Session = Depends(get_db)
-):
-    check_admin_role(x_user_role)
-    db_user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not db_user:
-        raise HTTPException(status_code=404, detail="Người dùng không tồn tại")
-    
-    db_user.username = user_data.username
-    db_user.password = user_data.password  # Trong thực tế nên hash mật khẩu
-    db_user.role = user_data.role
-    
-    db.commit()
-    db.refresh(db_user)
-    return db_user
-
-# Xóa người dùng (Có kiểm tra bảo vệ Admin)
-@app.delete("/admin/users/{user_id}", tags=["Quản trị - Người dùng"])
-def delete_user_admin(
-    user_id: int, 
-    x_user_role: Optional[str] = Header(None), 
-    db: Session = Depends(get_db)
-):
-    check_admin_role(x_user_role)
-    
-    # Lấy thông tin user hiện tại từ DB để check (tránh tự xóa mình)
-    db_user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not db_user:
-        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
-    
-    db.delete(db_user)
-    db.commit()
-    return {"message": f"Đã xóa người dùng {db_user.username} thành công"}
+    return db.query(models.User).all()
