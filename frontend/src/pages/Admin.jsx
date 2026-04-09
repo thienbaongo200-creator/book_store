@@ -8,13 +8,11 @@ const Admin = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingBook, setEditingBook] = useState(null);
   
-  // State cho file ảnh mới
   const [selectedFile, setSelectedFile] = useState(null);
-
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
-  const itemsPerPage = 50;
+  const itemsPerPage = 8; // Chỉnh xuống 8 để dễ thấy hiệu ứng phân trang
 
   const [formData, setFormData] = useState({
     title: "", author: "", price: 0, stock: 10, description: "", category_id: 1
@@ -65,6 +63,11 @@ const Admin = () => {
     fetchData();
   }, [fetchData]);
 
+  // Cuộn lên đầu trang khi đổi trang
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentPage]);
+
   const getCategoryName = (id) => {
     const cat = categories.find(c => c.id === id);
     return cat ? cat.name : `ID: ${id}`;
@@ -72,7 +75,7 @@ const Admin = () => {
 
   const handleAddClick = () => {
     setEditingBook(null);
-    setSelectedFile(null); // Reset file
+    setSelectedFile(null);
     setFormData({ 
       title: "", author: "", price: 0, stock: 10, description: "", 
       category_id: categories[0]?.id || 1 
@@ -82,7 +85,7 @@ const Admin = () => {
 
   const handleEditClick = (book) => {
     setEditingBook(book);
-    setSelectedFile(null); // Reset file khi mở form sửa
+    setSelectedFile(null);
     setFormData({ 
       title: book.title, 
       author: book.author, 
@@ -108,8 +111,6 @@ const Admin = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Sử dụng FormData để gửi file
     const data = new FormData();
     data.append("title", formData.title);
     data.append("author", formData.author);
@@ -118,7 +119,6 @@ const Admin = () => {
     data.append("description", formData.description);
     data.append("category_id", formData.category_id);
     
-    // Chỉ đính kèm file nếu người dùng có chọn ảnh mới
     if (selectedFile) {
       data.append("image", selectedFile);
     }
@@ -127,7 +127,7 @@ const Admin = () => {
       const config = { 
         headers: { 
           ...getAuthHeader(),
-          "Content-Type": "multipart/form-data" // Bắt buộc khi gửi file
+          "Content-Type": "multipart/form-data"
         } 
       };
 
@@ -230,6 +230,53 @@ const Admin = () => {
           </div>
         </div>
 
+        {/* THANH PHÂN TRANG (PAGINATION) */}
+        <div className="mt-12 flex justify-center items-center gap-3 pb-20">
+          <button 
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="px-6 py-3 rounded-2xl bg-white shadow-lg text-gray-900 font-black italic hover:bg-indigo-600 hover:text-white transition-all disabled:opacity-20 disabled:cursor-not-allowed"
+          >
+            ← TRƯỚC
+          </button>
+
+          <div className="flex gap-2 mx-4">
+            {[...Array(totalPages)].map((_, index) => {
+              const pageNumber = index + 1;
+              if (
+                pageNumber === 1 || 
+                pageNumber === totalPages || 
+                (pageNumber >= currentPage - 1 && pageNumber <= currentPage + 1)
+              ) {
+                return (
+                  <button
+                    key={pageNumber}
+                    onClick={() => setCurrentPage(pageNumber)}
+                    className={`w-12 h-12 rounded-2xl font-black transition-all shadow-md ${
+                      currentPage === pageNumber 
+                        ? "bg-gray-900 text-white scale-110 shadow-indigo-300" 
+                        : "bg-white text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    {pageNumber}
+                  </button>
+                );
+              } else if (pageNumber === currentPage - 2 || pageNumber === currentPage + 2) {
+                return <span key={pageNumber} className="text-gray-400 font-black flex items-end pb-2">...</span>;
+              }
+              return null;
+            })}
+          </div>
+
+          <button 
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            className="px-6 py-3 rounded-2xl bg-white shadow-lg text-gray-900 font-black italic hover:bg-indigo-600 hover:text-white transition-all disabled:opacity-20 disabled:cursor-not-allowed"
+          >
+            SAU →
+          </button>
+        </div>
+
         {/* Modal Form */}
         {showModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -259,7 +306,6 @@ const Admin = () => {
                   </select>
                 </div>
 
-                {/* Phần chọn file ảnh mới thay cho đường dẫn */}
                 <div className="col-span-2">
                   <label className="block text-xs font-black text-gray-400 uppercase mb-2">
                     {editingBook ? "Thay đổi ảnh bìa (Để trống nếu giữ nguyên)" : "Tải ảnh bìa lên"}
