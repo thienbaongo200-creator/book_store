@@ -7,7 +7,7 @@ from fastapi import FastAPI, Depends, HTTPException, Query, File, UploadFile, Fo
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session, joinedload
-
+from sqlalchemy.sql.expression import func
 # Import từ các file local của Team
 from . import models, schemas
 from .database import SessionLocal, engine
@@ -212,8 +212,21 @@ def delete_book(book_id: int, x_user_role: Optional[str] = Header(None), db: Ses
     db.delete(db_book)
     db.commit()
     return {"message": "Xóa sách thành công"}
-
-# --- 4. GIỎ HÀNG & YÊU THÍCH ---
+@app.get("/books/{book_id}", tags=["Sách"])
+def get_book_detail(book_id: int, db: Session = Depends(get_db)):
+    db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    if not db_book:
+        raise HTTPException(status_code=404, detail="Không tìm thấy cuốn sách này!")
+    return db_book
+@app.get("/books/random/", tags=["Sách"])
+def get_random_books(limit: int = 5, db: Session = Depends(get_db)):
+    try:
+        books = db.query(models.Book).order_by(func.random()).limit(limit).all()
+        return books
+    except Exception as e:
+        print(f"Lỗi Backend: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+# --- 4. GIỎ HÀNG  ---
 
 @app.post("/cart/", response_model=schemas.CartItemResponse, tags=["Giỏ hàng"])
 def add_to_cart(item: schemas.CartItemCreate, db: Session = Depends(get_db)):
@@ -234,6 +247,31 @@ def add_to_cart(item: schemas.CartItemCreate, db: Session = Depends(get_db)):
 def get_user_cart(user_id: int, db: Session = Depends(get_db)):
     return db.query(models.CartItem).options(joinedload(models.CartItem.book)).filter(models.CartItem.user_id == user_id).all()
 
+@app.put("/cart/{item_id}", response_model=schemas.CartItemResponse, tags=["Giỏ hàng"])
+def update_cart_quantity(item_id: int, update_data: schemas.CartUpdateQuantity, db: Session = Depends(get_db)):
+    db_item = db.query(models.CartItem).filter(models.CartItem.id == item_id).first()
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Không tìm thấy mục này trong giỏ hàng")
+    
+    # Kiểm tra tồn kho của sách đó
+    book = db.query(models.Book).filter(models.Book.id == db_item.book_id).first()
+    if update_data.quantity > book.stock:
+        raise HTTPException(status_code=400, detail=f"Rất tiếc, kho chỉ còn {book.stock} cuốn!")
+
+    db_item.quantity = update_data.quantity
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+@app.delete("/cart/{item_id}", tags=["Giỏ hàng"])
+def delete_cart_item(item_id: int, db: Session = Depends(get_db)):
+    db_item = db.query(models.CartItem).filter(models.CartItem.id == item_id).first()
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Mục này không tồn tại")
+    
+    db.delete(db_item)
+    db.commit()
+    return {"message": "Đã xóa khỏi giỏ hàng thành công"}
 # --- 5. ĐƠN HÀNG (USER & ADMIN) ---
 
 @app.post("/orders/{user_id}", tags=["Đơn hàng"])
@@ -255,7 +293,7 @@ def create_order(user_id: int, db: Session = Depends(get_db)):
     
     db.query(models.CartItem).filter(models.CartItem.user_id == user_id).delete()
     db.commit()
-    return {"message": "Thanh toán thành công!", "order_id": new_order.id}
+    return {"message": "Thanh toán thành công!", "order_id": new_order.id, "total": total}
 
 @app.get("/orders/{user_id}", tags=["Đơn hàng"])
 def get_user_order_history(user_id: int, db: Session = Depends(get_db)):
@@ -278,3 +316,35 @@ def get_all_orders_admin(x_user_role: Optional[str] = Header(None), db: Session 
 def list_all_users_admin(x_user_role: Optional[str] = Header(None), db: Session = Depends(get_db)):
     check_admin_role(x_user_role)
     return db.query(models.User).all()
+
+# --- 7. Wishlist ---
+
+@app.get("/wishlist/{user_id}", tags=["Yêu thích"])
+def get_wishlist(user_id: int, db: Session = Depends(get_db)):
+    items = db.query(models.Wishlist)\
+              .options(joinedload(models.Wishlist.book))\
+              .filter(models.Wishlist.user_id == user_id)\
+              .all()
+    return items
+
+# Route Toggle (Thêm nếu chưa có, Xóa nếu đã có)
+@app.post("/wishlist/toggle", tags=["Yêu thích"])
+def toggle_wishlist(data: dict, db: Session = Depends(get_db)):
+    user_id = data.get("user_id")
+    book_id = data.get("book_id")
+    
+    # Kiểm tra xem đã tồn tại trong wishlist chưa
+    item = db.query(models.Wishlist).filter(
+        models.Wishlist.user_id == user_id, 
+        models.Wishlist.book_id == book_id
+    ).first()
+
+    if item:
+        db.delete(item)
+        db.commit()
+        return {"status": False, "message": "Đã xóa khỏi danh sách yêu thích"}
+    else:
+        new_fav = models.Wishlist(user_id=user_id, book_id=book_id)
+        db.add(new_fav)
+        db.commit()
+        return {"status": True, "message": "Đã thêm vào danh sách yêu thích"}

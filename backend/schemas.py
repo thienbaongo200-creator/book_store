@@ -62,6 +62,11 @@ class CartItemResponse(BaseModel):
     book: BookResponse 
     model_config = ConfigDict(from_attributes=True)
 
+class CartUpdateQuantity(BaseModel):
+    quantity: int
+
+    class Config:
+        from_attributes = True
 # --- 5. ĐƠN HÀNG (ORDER) ---
 class OrderItemResponse(BaseModel):
     id: int
