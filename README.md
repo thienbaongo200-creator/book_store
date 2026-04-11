@@ -1,96 +1,148 @@
-📚 XÂY DỰNG WEBSITE  BÁN SÁCH BẰNG PHẦN MỀM MÃ NGUỒN MỞ LIXNUX MINT_Nhóm 1
-Đồ án môn học: PHÁT TRIỂN PHẦN MỀM MÃ NGUỒN MỞ
-Giảng viên hướng dẫn: Ths. Trần Văn Định
-Trường: Đại học Tài nguyên và Môi trường TP.HCM (HCMUNRE)
+# ĐỒ ÁN MÔN HỌC: PHÁT TRIỂN PHẦN MỀM MÃ NGUỒN MỞ
+## Đề tài: XÂY DỰNG WEBSITE BÁN SÁCH TRÊN NỀN TẢNG LINUX MINT
 
-🏗️ Tổng quan kiến trúc hệ thống
-Hệ thống được xây dựng theo mô hình Client-Server, tích hợp WebGIS để quản lý vị trí các chi nhánh và điều phối kho hàng.
 
-Frontend: React 19 (Vite) - Xử lý giao diện người dùng và tương tác bản đồ.
+### THÔNG TIN CHUNG
+* **Đơn vị:** Khoa Công nghệ thông tin - Trường Đại học Tài nguyên và Môi trường TP.HCM
+* **Giảng viên hướng dẫn:** ThS. Trần Văn Định
+* **Thực hiện:** Nhóm 1
+   1. Ngô Quốc Thiên Bảo_1250080015
+   2. Nguyễn Minh Chiến_1250080024
+   3. Nguyễn Văn Danh_1250080027
 
-Backend: FastAPI (Python 3.12) - Cung cấp RESTful API, xử lý Logic nghiệp vụ và xác thực dữ liệu.
 
-Database: MySQL Server - Lưu trữ dữ liệu quan hệ, quản lý ràng buộc và giao dịch (Transactions).
+---
 
-🛠️ Chi tiết môi trường phát triển (Tech Stack)
-1. Backend (Python v3.12.x)
-Môi trường ảo venv đảm bảo tính đóng gói với các thư viện:
+### 1. TỔNG QUAN HỆ THỐNG
+Hệ thống được xây dựng trên kiến trúc tách biệt (**Decoupled Architecture**) giữa Frontend và Backend, giúp tối ưu hóa khả năng bảo trì và mở rộng độc lập.
 
-FastAPI (v0.135.1): Framework chính cho hiệu suất cao.
+* **Frontend:** React 19 (Vite) - Đảm nhiệm vai trò render giao diện người dùng và xử lý tương tác bản đồ số qua thư viện Leaflet.
+* **Backend:** FastAPI (Python 3.12) - Cung cấp RESTful API, quản lý logic nghiệp vụ, xác thực và tương tác cơ sở dữ liệu qua ORM.
+* **Database:** MySQL Server - Lưu trữ dữ liệu quan hệ, quản lý thông tin sản phẩm, người dùng và giao dịch.
 
-SQLAlchemy (v2.0.48): ORM mạnh mẽ để tương tác với MySQL.
+---
 
-PyMySQL (v1.1.2): Driver kết nối Database.
+### 2. DANH MỤC CÔNG NGHỆ (TECH STACK)
 
-Pydantic (v2.12.5): Kiểm định dữ liệu đầu vào/đầu ra (Schemas).
+| Thành phần | Công nghệ sử dụng | Vai trò chi tiết |
+| :--- | :--- | :--- |
+| **Backend Framework** | FastAPI | Framework ASGI hiệu năng cao cho Python |
+| **ORM** | SQLAlchemy | Quản lý truy vấn cơ sở dữ liệu dưới dạng đối tượng |
+| **Database Driver** | PyMySQL | Kết nối trực tiếp giữa Python và MySQL |
+| **Validation** | Pydantic | Kiểm soát và xác thực cấu trúc dữ liệu đầu vào/đầu ra |
+| **Web UI** | React 19 | Thư viện xây dựng giao diện người dùng thành phần |
+| **Build Tool** | Vite | Tối ưu hóa tốc độ đóng gói và phản hồi Frontend |
+| **GIS Component** | Leaflet | Hiển thị và xử lý các lớp bản đồ tương tác |
 
-Uvicorn (v0.42.0): ASGI Server vận hành ứng dụng.
+---
 
-2. Frontend (React v19.2.4)
-Tối ưu hóa trải nghiệm người dùng với các công cụ:
+### 3. CẤU TRÚC THƯ MỤC DỰ ÁN
 
-Vite (v8.0.1): Build tool thế hệ mới cho tốc độ phản hồi cực nhanh.
+| Thư mục/Tệp | Vai trò |
+|-------------|---------|
+| frontend/ | Mã nguồn ứng dụng React |
+| ├── src/ | Logic xử lý, giao diện và dịch vụ API |
+| ├── public/ | Tài nguyên tĩnh phía máy khách |
+| └── package.json | Danh sách thư viện Node.js |
+| backend/ | Mã nguồn máy chủ FastAPI |
+| ├── main.py | Khởi tạo ứng dụng và định nghĩa Endpoints |
+| ├── models.py | Định nghĩa cấu trúc Database (ORM) |
+| ├── schemas.py | Định nghĩa kiểu dữ liệu truyền tải (Pydantic) |
+| ├── database.py | Cấu hình kết nối hệ quản trị cơ sở dữ liệu |
+| └── static/images/ | Kho lưu trữ hình ảnh sản phẩm |
+| venv/ | Môi trường ảo hóa Python |
+| database_backup.sql | Tệp tin sao lưu cấu trúc và dữ liệu MySQL |
 
-Axios (v1.13.6): Thư viện gọi API chuyên dụng.
+---
 
-React Router DOM (v7.13.1): Quản lý điều hướng trang.
+### 4. QUY TRÌNH CÀI ĐẶT VÀ VẬN HÀNH
+#### Bước 1. Lấy mã nguồn và công cụ phát triển
+- Tải **Visual Studio Code** cho Linux Mint (.deb): [Download VS Code](https://code.visualstudio.com/download)
+- Cài đặt Git:
+  ```bash
+  sudo apt install git
+- Clone Repository từ GitHub:
+   ```bash
+   git clone https://github.com/thienbaongo200-creator/book_store.git
+   cd book_store
 
-Tailwind CSS (v4.2.2): Framework CSS hiện đại giúp tùy biến UI nhanh chóng.
+#### Bước 2. Chuẩn bị môi trường ảo cho Backend
+- Cài đặt phần mềm ảo (VMware Workstation) và khởi tạo máy ảo chạy Linux Mint 21+
+- Cập nhật hệ thống và cài đặt các gói công cụ cơ bản:
+   ```bash
+   sudo apt update
+   sudo apt install mysql-server python3-pip python3.12-venv
+- Tạo và kích hoạt môi trường ảo:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+- Cài đặt các thư viện Python cần thiết
+   ```bash
+   pip install fastapi uvicorn sqlalchemy pymysql pydantic python-multipart --break-system-packages
+#### Bước 3. Thiết lập cơ sở dữ liệu
+- Truy cập MySQL Terminal: 
+   ```bash
+   sudo mysql -u root -p
+- (Nếu cần) Khởi động MySQL:
+   ```bash
+   sudo systemctl start mysql
+   sudo systemctl status mysql
+- Khởi tạo Database: 
+   ```bash
+   CREATE DATABASE bookstore_db;
+- Thiết lập user root với mật khẩu và quyền:
+   ```bash
+   ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'matkhau123';
+   GRANT ALL PRIVILEGES ON bookstore_db.* TO 'root'@'localhost';
+   FLUSH PRIVILEGES;
+   EXIT;
 
-Leaflet: Thư viện bản đồ số phục vụ tính năng WebGIS.
+- Phục hồi dữ liệu từ file backup:
+   ```bash
+   sudo mysql -u root -p bookstore_db < database_backup.sql
+#### Bước 4: Triển khai Backend 
+- Di chuyển vào thư mục dự án và kích hoạt môi trường ảo:
+   ```bash
+   source venv/bin/activate
+- Khởi động server: 
+   ```bash
+   uvicorn backend.main:app --reload
+- Tài liệu API (Swagger): http://127.0.0.1:8000/docs
 
-📂 Cấu trúc thư mục dự án
-Plaintext
-bookstore_backend/
-├── frontend/                # Mã nguồn React (Vite)
-│   ├── src/                 # Components, Pages, API Services
-│   ├── public/              # Tài nguyên tĩnh Frontend
-│   └── package.json         # Danh sách thư viện Node.js
-├── backend/                 # Mã nguồn FastAPI
-│   ├── main.py              # Luồng xử lý Endpoints (API chính)
-│   ├── models.py            # Định nghĩa thực thể Database (ORM)
-│   ├── schemas.py           # Pydantic Schemas (Validation)
-│   ├── database.py          # Cấu hình Engine kết nối MySQL
-│   └── static/images/       # Kho chứa ảnh bìa sách (Clean Code, Python...)
-├── venv/                    # Môi trường ảo Python
-└── database_backup.sql      # File sao lưu cấu hình & dữ liệu MySQL
-🚀 Hướng dẫn cài đặt & Khởi chạy (Linux/Ubuntu)
-Bước 1: Thiết lập Database
-Mở MySQL Terminal: mysql -u root -p
+#### Bước 5: Triển khai Frontend
+- Di chuyển vào thư mục: 
+   ```bash
+   cd ~/book_store/frontend
+- Cài đặt Node.js và npm: 
+   ```bash
+   sudo apt update
+   sudo apt install -y nodejs npm
+- Cài đặt các node modules:
+   ```bash
+   npm install 
+- Kiểm tra phiên bản
+   ```bash
+   node -v
+   npm -v
+- khởi động ứng dụng: 
+   ```bash
+   npm run dev
+- Địa chỉ truy cập: http://localhost:5173
 
-Tạo database: CREATE DATABASE bookstore_db;
+- (Nếu cần) Nâng cấp bản Node.js lên bản LTS mới nhất
+   ```bash
+   sudo npm install -g n
+   sudo n lts
+   hash -r
+- (Nếu cần) Xóa node_modules và package-lock.json để cài lại sạch
+   ```bash 
+   rm -rf node_modules package-lock.json
+   npm install
+---
+### 5. CÁC TÍNH NĂNG TRỌNG TÂM
+- Quản lý danh mục: Hỗ trợ tìm kiếm, lọc theo loại và xem chi tiết sản phẩm trực quan.
+- Hệ thống giỏ hàng: Xử lý lưu trữ phiên làm việc, kiểm soát số lượng dựa trên tồn kho thực tế.
+- Quy trình đơn hàng: Tính toán giá trị giao dịch tự động tại Server và cập nhật trạng thái kho.
+- Xác thực người dùng: Hệ thống đăng ký, đăng nhập và phân quyền để quản lý đơn hàng cá nhân.
+- Static Server: Cấu hình phục vụ hình ảnh sản phẩm trực tiếp từ backend, tối ưu hóa đường dẫn tĩnh.
 
-Nạp dữ liệu mẫu: mysql -u root -p bookstore_db < database_backup.sql
-
-Bước 2: Khởi chạy Backend
-Bash
-# Di chuyển vào thư mục dự án
-cd bookstore_backend
-# Kích hoạt môi trường ảo
-source venv/bin/activate
-# Chạy server (mặc định tại port 8000)
-uvicorn backend.main:app --reload
-👉 Tài liệu API: http://127.0.0.1:8000/docs
-
-Bước 3: Khởi chạy Frontend
-Bash
-cd frontend
-npm install
-npm run dev
-👉 Giao diện Web: http://localhost:5173
-
-🛡️ Các chức năng trọng tâm đã hoàn thiện
-Quản lý Giỏ hàng (Cart Logic): Tự động gán user_id, cộng dồn số lượng và kiểm tra tính toàn vẹn dữ liệu qua Pydantic.
-
-Thanh toán & Đơn hàng (Order Logic): Tự động tính tổng tiền từ Database, trừ tồn kho (stock) và dọn dẹp giỏ hàng sau khi chốt đơn thành công.
-
-Xử lý Static Files: Cấu hình thư mục tĩnh phục vụ hiển thị ảnh bìa sách trực tiếp từ Server Backend.
-
-CORS Policy: Đã cấu hình cho phép Frontend React gọi API xuyên suốt các cổng khác nhau.
-
-📝 Nhật ký cập nhật (Changelog)
-✅ v1.3.1: Sửa lỗi ResponseValidationError do giá trị NULL trong Database.
-
-✅ v1.3.0: Cập nhật Schema bảng cart_items, thêm cột user_id và thiết lập khóa ngoại.
-
-✅ v1.2.0: Hoàn thiện Logic thanh toán tự động và trừ kho hàng.
