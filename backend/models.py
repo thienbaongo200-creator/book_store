@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -7,8 +7,6 @@ class Category(Base):
     __tablename__ = "categories"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), unique=True, index=True)
-    
-    # Quan hệ: Một danh mục có nhiều sách
     books = relationship("Book", back_populates="category")
 
 class Book(Base):
@@ -21,23 +19,34 @@ class Book(Base):
     stock = Column(Integer, default=0)
     description = Column(Text, nullable=True)
     category_id = Column(Integer, ForeignKey("categories.id"))
-    
-    # Quan hệ
     category = relationship("Category", back_populates="books")
+    reviews = relationship("Review", back_populates="book", cascade="all, delete-orphan")
+
+class Review(Base):
+    __tablename__ = "reviews"
+    id = Column(Integer, primary_key=True, index=True)
+    book_id = Column(Integer, ForeignKey("books.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    rating = Column(Integer, default=5) 
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    book = relationship("Book", back_populates="reviews")
+    user = relationship("User", back_populates="reviews")
+    __table_args__ = (
+        UniqueConstraint('user_id', 'book_id', name='_user_book_review_uc'),
+    )
 
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, index=True)
     password = Column(String(255))
-    role = Column(String(20), default="user") # "user" hoặc "admin"
-    
-    # Quan hệ: Một user có nhiều đơn hàng, giỏ hàng và yêu thích
-    # Cascade="all, delete-orphan" giúp xóa User thì xóa sạch dữ liệu liên quan
+    role = Column(String(20), default="user")
     orders = relationship("Order", back_populates="owner", cascade="all, delete-orphan")
     cart_items = relationship("CartItem", back_populates="user", cascade="all, delete-orphan")
     wishlist_items = relationship("Wishlist", back_populates="user", cascade="all, delete-orphan")
-
+    reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
+    
 class CartItem(Base):
     __tablename__ = "cart_items"
     id = Column(Integer, primary_key=True, index=True)

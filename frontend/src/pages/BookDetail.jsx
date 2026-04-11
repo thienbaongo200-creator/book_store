@@ -8,17 +8,59 @@ const BookDetail = () => {
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false); 
-  const [wishlistId, setWishlistId] = useState(null);
+
+  const [reviews, setReviews] = useState([]);
+  const [rating, setRating] = useState(5);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [hasReviewed, setHasReviewed] = useState(false);
 
   const BASE_URL = "http://127.0.0.1:8000";
 
-  // --- LẤY THÔNG TIN USER ĐÃ ĐĂNG NHẬP ---
   const getLoggedUser = () => {
     const savedUser = localStorage.getItem("user");
     return savedUser ? JSON.parse(savedUser) : null;
   };
 
-  // 1. Hàm Bật/Tắt yêu thích (Toggle)
+  const fetchReviews = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/reviews/${id}`);
+      setReviews(res.data);
+      const user = getLoggedUser();
+      if (user) {
+        const alreadyReviewed = res.data.some(r => r.user_id === user.id);
+        setHasReviewed(alreadyReviewed);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const submitReview = async (e) => {
+    e.preventDefault();
+    const user = getLoggedUser();
+
+    if (!user) {
+      alert("Vui lòng đăng nhập để đánh giá!");
+      navigate("/login");
+      return;
+    }
+
+    try {
+      await axios.post(`${BASE_URL}/reviews/`, {
+        book_id: parseInt(id),
+        user_id: user.id,
+        rating: rating,
+        comment: comment
+      });
+      alert("Cảm ơn bạn đã đánh giá!");
+      setComment("");
+      fetchReviews();
+    } catch (error) {
+      alert(error.response?.data?.detail || "Không thể gửi đánh giá.");
+    }
+  };
+
   const toggleWishlist = async () => {
     const user = getLoggedUser();
     if (!user) {
@@ -28,44 +70,30 @@ const BookDetail = () => {
     }
 
     try {
-      // SỬA: Dùng API toggle chung của Backend (Gửi POST kèm user_id và book_id)
       const res = await axios.post(`${BASE_URL}/wishlist/toggle`, {
         book_id: parseInt(id),
         user_id: user.id 
       });
-      
-      // Backend trả về status: true (đã thêm) hoặc false (đã xóa)
       setIsFavorite(res.data.status);
     } catch (error) {
-      console.error("Lỗi thao tác yêu thích:", error);
+      console.error(error);
     }
   };
 
-  // 2. Hàm kiểm tra trạng thái yêu thích ban đầu
   const fetchWishlistStatus = async () => {
     const user = getLoggedUser();
     if (!user) return;
-
     try {
-      // SỬA: Gọi đúng endpoint /wishlist/{user_id}
       const res = await axios.get(`${BASE_URL}/wishlist/${user.id}`);
       const item = res.data.find(fav => fav.book_id === parseInt(id));
-      
-      if (item) {
-        setIsFavorite(true);
-      } else {
-        setIsFavorite(false);
-      }
+      setIsFavorite(!!item);
     } catch (error) {
-      console.error("Lỗi kiểm tra yêu thích:", error);
+      console.error(error);
     }
   };
 
-  // 3. Hàm Thêm vào giỏ hàng
   const addToCart = async () => {
     const user = getLoggedUser();
-
-    // Kiểm tra đăng nhập
     if (!user) {
       alert("Bạn cần đăng nhập để mua sách!");
       navigate("/login");
@@ -75,12 +103,12 @@ const BookDetail = () => {
     try {
       await axios.post(`${BASE_URL}/cart/`, {
         book_id: book.id,
-        user_id: user.id, // Truyền ID động của người dùng
+        user_id: user.id,
         quantity: 1
       });
-      alert(`🎉 Đã thêm "${book.title}" vào giỏ hàng của bạn!`);
+      alert(`🎉 Đã thêm "${book.title}" vào giỏ hàng!`);
     } catch (error) {
-      alert("Không thể thêm vào giỏ hàng. Vui lòng thử lại!");
+      alert("Không thể thêm vào giỏ hàng.");
     }
   };
 
@@ -90,9 +118,9 @@ const BookDetail = () => {
       try {
         const bookRes = await axios.get(`${BASE_URL}/books/${id}`);
         setBook(bookRes.data);
-        await fetchWishlistStatus(); 
+        await Promise.all([fetchWishlistStatus(), fetchReviews()]);
       } catch (err) {
-        console.error("Lỗi tải dữ liệu:", err);
+        console.error(err);
       } finally {
         setLoading(false);
       }
@@ -119,7 +147,6 @@ const BookDetail = () => {
       </button>
 
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-50 flex flex-col md:flex-row">
-        {/* Ảnh sách */}
         <div className="md:w-5/12 bg-gray-50 p-8 flex items-center justify-center border-r border-gray-100">
           <div className="relative w-full max-w-[320px] aspect-[3/4] rounded-lg shadow-2xl overflow-hidden bg-white">
             <img 
@@ -131,7 +158,6 @@ const BookDetail = () => {
           </div>
         </div>
 
-        {/* Thông tin sách */}
         <div className="md:w-7/12 p-8 md:p-12 flex flex-col">
           <div className="flex-1">
             <div className="flex items-center space-x-2 mb-6">
@@ -154,13 +180,12 @@ const BookDetail = () => {
             <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 mb-8 relative">
                 <div className="absolute -top-3 left-6 bg-white px-2 text-xs font-bold text-gray-400 uppercase tracking-tighter">Mô tả tóm tắt</div>
                 <p className="text-gray-600 leading-relaxed italic">
-                  Cuốn sách "{book.title}" là một trong những tác phẩm tâm đắc nhất của {book.author}, hứa hẹn mang lại những trải nghiệm đọc tuyệt vời và nhiều giá trị nhân văn sâu sắc cho độc giả.
+                  Cuốn sách "{book.title}" là một tác phẩm đặc sắc của {book.author}, mang lại nhiều giá trị sâu sắc cho độc giả.
                 </p>
             </div>
           </div>
 
           <div className="flex gap-4">
-            {/* Nút Giỏ hàng */}
             <button 
               onClick={addToCart} 
               disabled={book.stock <= 0}
@@ -173,7 +198,6 @@ const BookDetail = () => {
               {book.stock > 0 ? "THÊM VÀO GIỎ HÀNG" : "SẢN PHẨM HẾT HÀNG"}
             </button>
             
-            {/* Nút Trái tim */}
             <button 
               onClick={toggleWishlist}
               className={`px-6 rounded-2xl transition-all duration-300 border-2 flex items-center justify-center hover:-translate-y-1 ${
@@ -182,10 +206,92 @@ const BookDetail = () => {
                 : 'bg-white border-gray-100 text-gray-300 hover:border-rose-100 hover:text-rose-300'
               }`}
             >
-              <span className="text-3xl">
-                {isFavorite ? '❤️' : '♡'}
-              </span>
+              <span className="text-3xl">{isFavorite ? '❤️' : '♡'}</span>
             </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-16 border-t border-gray-100 pt-12">
+        <h2 className="text-3xl font-black text-gray-900 mb-8">Đánh giá từ độc giả</h2>
+
+        <div className="grid md:grid-cols-2 gap-12">
+          <div>
+            {hasReviewed ? (
+              <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-3xl text-emerald-700 font-bold flex items-center justify-center text-center">
+                ✨ Bạn đã gửi đánh giá cho cuốn sách này.<br/>Cảm ơn bạn đã đóng góp ý kiến!
+              </div>
+            ) : (
+              <form onSubmit={submitReview} className="bg-gray-50 p-8 rounded-3xl border border-gray-100 shadow-inner">
+                <h3 className="text-lg font-bold mb-6 uppercase tracking-wider">Gửi nhận xét của bạn</h3>
+                
+                <div className="mb-4">
+                  <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Số sao (1-5)</label>
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onMouseEnter={() => setHoverRating(num)}
+                        onMouseLeave={() => setHoverRating(0)}
+                        onClick={() => setRating(num)}
+                        className="text-3xl transition-all duration-200 transform hover:scale-125 focus:outline-none"
+                      >
+                        <span className={(hoverRating || rating) >= num ? "text-yellow-400" : "text-gray-300"}>
+                          {(hoverRating || rating) >= num ? '★' : '☆'}
+                        </span>
+                      </button>
+                    ))}
+                    <span className="ml-3 text-sm font-bold text-gray-500 bg-white px-2 py-1 rounded-lg shadow-sm border border-gray-100">
+                      {rating}/5
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-xs font-bold uppercase text-gray-400 mb-2">Bình luận</label>
+                  <textarea 
+                    rows="4"
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    placeholder="Viết cảm nghĩ về sách..."
+                    className="w-full p-4 rounded-xl border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
+                    required
+                  ></textarea>
+                </div>
+
+                <button type="submit" className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-all active:scale-95 shadow-lg">
+                  GỬI ĐÁNH GIÁ
+                </button>
+              </form>
+            )}
+          </div>
+
+          <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+            {reviews.length === 0 ? (
+              <div className="text-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                <p className="text-gray-400 italic">Chưa có đánh giá nào. Hãy là người đầu tiên!</p>
+              </div>
+            ) : (
+              reviews.map((rev, index) => (
+                <div key={index} className="p-6 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold text-xs">
+                        U
+                      </div>
+                      <span className="font-bold text-gray-700 text-sm">Người dùng #{rev.user_id}</span>
+                    </div>
+                    <div className="flex text-yellow-400 text-lg">
+                      {[...Array(5)].map((_, i) => (
+                        <span key={i} className="drop-shadow-sm">{i < rev.rating ? '★' : '☆'}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-gray-600 italic leading-relaxed">"{rev.comment}"</p>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

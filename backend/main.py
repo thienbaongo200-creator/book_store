@@ -327,13 +327,10 @@ def get_wishlist(user_id: int, db: Session = Depends(get_db)):
               .all()
     return items
 
-# Route Toggle (Thêm nếu chưa có, Xóa nếu đã có)
 @app.post("/wishlist/toggle", tags=["Yêu thích"])
 def toggle_wishlist(data: dict, db: Session = Depends(get_db)):
     user_id = data.get("user_id")
     book_id = data.get("book_id")
-    
-    # Kiểm tra xem đã tồn tại trong wishlist chưa
     item = db.query(models.Wishlist).filter(
         models.Wishlist.user_id == user_id, 
         models.Wishlist.book_id == book_id
@@ -348,3 +345,44 @@ def toggle_wishlist(data: dict, db: Session = Depends(get_db)):
         db.add(new_fav)
         db.commit()
         return {"status": True, "message": "Đã thêm vào danh sách yêu thích"}
+# --- 8. Review ---
+class ReviewCreate(BaseModel):
+    book_id: int
+    user_id: int
+    rating: int
+    comment: str
+
+@app.get("/reviews/{book_id}", tags=["Đánh giá"])
+def get_book_reviews(book_id: int, db: Session = Depends(get_db)):
+    # Lấy danh sách đánh giá của một cuốn sách
+    return db.query(models.Review).filter(models.Review.book_id == book_id).all()
+
+@app.post("/reviews/", tags=["Đánh giá"])
+def create_review(review: ReviewCreate, db: Session = Depends(get_db)):
+    # 1. Kiểm tra xem user đã đánh giá cuốn sách này chưa
+    existing_review = db.query(models.Review).filter(
+        models.Review.user_id == review.user_id,
+        models.Review.book_id == review.book_id
+    ).first()
+    
+    if existing_review:
+        raise HTTPException(
+            status_code=400, 
+            detail="Bạn đã đánh giá cuốn sách này rồi. Mỗi người chỉ được đánh giá một lần!"
+        )
+    
+    # 2. Kiểm tra tính hợp lệ của số sao
+    if review.rating < 1 or review.rating > 5:
+        raise HTTPException(status_code=400, detail="Số sao phải từ 1 đến 5")
+
+    # 3. Lưu đánh giá mới
+    new_review = models.Review(
+        user_id=review.user_id,
+        book_id=review.book_id,
+        rating=review.rating,
+        comment=review.comment
+    )
+    db.add(new_review)
+    db.commit()
+    db.refresh(new_review)
+    return {"message": "Gửi đánh giá thành công!", "review": new_review}

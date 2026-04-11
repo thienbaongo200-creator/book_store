@@ -55,7 +55,7 @@ const Wishlist = () => {
   if (loading) return (
     <div className="flex flex-col justify-center items-center h-[60vh]">
       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
-      <p className="mt-4 text-gray-500 font-medium italic">Đang tìm những cuốn sách Bảo yêu thích...</p>
+      <p className="mt-4 text-gray-500 font-medium italic">Đang tìm những cuốn sách yêu thích...</p>
     </div>
   );
 
@@ -76,7 +76,7 @@ const Wishlist = () => {
       {wishlist.length === 0 ? (
         <div className="text-center py-32 bg-gray-50 rounded-[50px] border-4 border-dashed border-gray-100">
           <div className="text-8xl mb-6">🏜️</div>
-          <p className="text-gray-400 text-xl font-black italic mb-8">Chưa có cuốn sách nào lọt vào "mắt xanh" của Bảo cả!</p>
+          <p className="text-gray-400 text-xl font-black italic mb-8">Chưa có cuốn sách nào lọt vào "mắt xanh" của bạn cả!</p>
           <Link to="/" className="inline-block px-12 py-5 bg-gray-900 text-white rounded-2xl font-black hover:bg-indigo-600 transition-all shadow-xl shadow-gray-200">
             QUAY LẠI CỬA HÀNG
           </Link>
