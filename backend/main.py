@@ -330,6 +330,32 @@ def admin_create_user(user: schemas.UserCreate, db: Session = Depends(get_db), x
     db.refresh(new_user)
     return new_user
 
+@app.put("/admin/users/{user_id}", tags=["Quản trị - Người dùng"])
+def admin_update_user(user_id: int, user_data: schemas.UserCreate, x_user_role: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    check_admin_role(x_user_role)
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+    
+    # Cập nhật thông tin
+    db_user.username = user_data.username
+    db_user.password = user_data.password # Lưu ý: Trong thực tế nên hash mật khẩu
+    db_user.role = user_data.role
+    
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+@app.delete("/admin/users/{user_id}", tags=["Quản trị - Người dùng"])
+def admin_delete_user(user_id: int, x_user_role: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    check_admin_role(x_user_role)
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+    
+    db.delete(db_user)
+    db.commit()
+    return {"message": "Xóa người dùng thành công"}
 # --- 7. Wishlist ---
 
 @app.get("/wishlist/{user_id}", tags=["Yêu thích"])
