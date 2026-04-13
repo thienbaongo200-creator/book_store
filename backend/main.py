@@ -318,6 +318,18 @@ def list_all_users_admin(x_user_role: Optional[str] = Header(None), db: Session 
     check_admin_role(x_user_role)
     return db.query(models.User).all()
 
+@app.post("/admin/users/", response_model=schemas.UserResponse, tags=["Quản trị - Người dùng"])
+def admin_create_user(user: schemas.UserCreate, db: Session = Depends(get_db), x_user_role: Optional[str] = Header(None)):
+    check_admin_role(x_user_role)
+    db_user = db.query(models.User).filter(models.User.username == user.username).first()
+    if db_user:
+         raise HTTPException(status_code=400, detail="Tên đăng nhập đã tồn tại!")
+    new_user = models.User(**user.model_dump())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
 # --- 7. Wishlist ---
 
 @app.get("/wishlist/{user_id}", tags=["Yêu thích"])
