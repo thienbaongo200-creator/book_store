@@ -9,8 +9,9 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.sql.expression import func
 # Import từ các file local của Team
-from . import models, schemas
-from .database import SessionLocal, engine
+import models
+import schemas
+from database import SessionLocal, engine
 
 # --- CẤU HÌNH HỆ THỐNG ---
 models.Base.metadata.create_all(bind=engine)
