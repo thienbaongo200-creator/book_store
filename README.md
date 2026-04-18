@@ -40,21 +40,25 @@ Hệ thống được xây dựng trên kiến trúc tách biệt (**Decoupled A
 
 | Thư mục/Tệp | Vai trò |
 |-------------|---------|
-| frontend/ | Mã nguồn ứng dụng React |
-| ├── Dockerfile | Cấu hình build image cho Frontend |
-| ├── src/ | Logic xử lý, giao diện và dịch vụ API |
-| ├── public/ | Tài nguyên tĩnh phía máy khách |
-| └── package.json | Danh sách thư viện Node.js |
-| backend/ | Mã nguồn máy chủ FastAPI |
-| ├── Dockerfile | Cấu hình build image cho Backend |
-| ├── main.py | Khởi tạo ứng dụng và định nghĩa Endpoints |
-| ├── models.py | Định nghĩa cấu trúc Database (ORM) |
-| ├── schemas.py | Định nghĩa kiểu dữ liệu truyền tải (Pydantic) |
-| ├── database.py | Cấu hình kết nối hệ quản trị cơ sở dữ liệu |
-| └── static/images/ | Kho lưu trữ hình ảnh sản phẩm |
-| database_backup.sql | Tệp tin sao lưu cấu trúc và dữ liệu MySQL |
-| docker-compose.yml | Tệp điều phối toàn bộ hệ thống |
----
+| **backend/** | Mã nguồn máy chủ FastAPI |
+| ├── **Dockerfile** | Cấu hình build image cho Backend |
+| ├── **requirements.txt** | Danh sách thư viện Python |
+| ├── **main.py** | Khởi tạo ứng dụng và định nghĩa Endpoints |
+| ├── **models.py** | Định nghĩa cấu trúc Database (ORM) |
+| ├── **schemas.py** | Định nghĩa kiểu dữ liệu truyền tải (Pydantic) |
+| ├── **database.py** | Cấu hình kết nối hệ quản trị cơ sở dữ liệu |
+| └── **static/images/** | Kho lưu trữ hình ảnh sản phẩm (demo) |
+| **frontend/** | Mã nguồn ứng dụng React |
+| ├── **Dockerfile** | Cấu hình build image cho Frontend |
+| ├── **package.json** | Danh sách thư viện Node.js |
+| ├── **vite.config.js** | Cấu hình Vite cho Frontend |
+| ├── **eslint.config.js, postcss.config.js, tailwind.config.js** | Cấu hình bổ trợ cho frontend |
+| ├── **src/** | Logic xử lý, giao diện và dịch vụ API |
+| ├── **public/** | Tài nguyên tĩnh phía máy khách (favicon, icons) |
+| └── **index.html** | File HTML gốc |
+| **database_backup.sql** | Tệp tin sao lưu cấu trúc và dữ liệu MySQL |
+| **docker-compose.yml** | Tệp điều phối toàn bộ hệ thống |
+| **README.md** | Tài liệu mô tả dự án |
 
 ### 4. QUY TRÌNH CÀI ĐẶT VÀ VẬN HÀNH
 #### Bước 1. Cài đặt Docker trên Linux Mint
@@ -62,15 +66,15 @@ Hệ thống được xây dựng trên kiến trúc tách biệt (**Decoupled A
 - Mở Terminal và chạy các lệnh sau:
   ```bash
    sudo apt update
-   sudo apt install docker.io docker-compose -y
+   sudo apt install docker.io -y
+   sudo apt install docker-compose -y
    sudo systemctl start docker
    sudo systemctl enable docker
    sudo usermod -aG docker $USER
-- Lưu ý: yêu cầu người dùng phải Đăng xuất và Đăng nhập lại (hoặc khởi động lại máy)
 #### Bước 2. Chuẩn bị mã nguồn
 - Cài đặt Git:
   ```bash
-  sudo apt install git
+  sudo apt install git -y
 - Clone Repository từ GitHub trong Visual Studio Code:
    ```bash
    git clone https://github.com/thienbaongo200-creator/book_store.git
@@ -82,12 +86,15 @@ Hệ thống được xây dựng trên kiến trúc tách biệt (**Decoupled A
 - Chạy lệnh để build và chạy toàn bộ hệ thống: 
    ```bash
    sudo apt install python3-setuptools python3-pip -y
-   docker-compose up --build
+   sudo docker-compose up --build
+- Nếu bị lỗi backend, thêm user vào nhóm docker rồi build lại
+   ```bash 
+   sudo usermod -aG docker $USER
 #### Bước 4: Kiểm tra trạng thái hệ thống
 - Kiểm tra các container đang chạy:
    ```bash
    docker ps
-- Nếu vì lý do nào đó dữ liệu chưa được import tự động, bạn có thể chạy lệnh thủ công sau:
+- Nếu dữ liệu chưa được import tự động, bạn có thể chạy lệnh thủ công sau:
    ```bash
    docker exec -i book_store-db-1 mysql -u root -padmin bookstore_db < database_backup.sql
 #### Bước 5: ĐỊA CHỈ TRUY CẬP
@@ -100,4 +107,3 @@ Hệ thống được xây dựng trên kiến trúc tách biệt (**Decoupled A
 - Quy trình đơn hàng: Tính toán giá trị giao dịch tự động tại Server và cập nhật trạng thái kho.
 - Xác thực người dùng: Hệ thống đăng ký, đăng nhập và phân quyền để quản lý đơn hàng cá nhân.
 - Static Server: Cấu hình phục vụ hình ảnh sản phẩm trực tiếp từ backend, tối ưu hóa đường dẫn tĩnh.
-
