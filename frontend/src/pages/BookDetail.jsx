@@ -7,7 +7,7 @@ const BookDetail = () => {
   const navigate = useNavigate();
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isFavorite, setIsFavorite] = useState(false); 
+  const [isFavorite, setIsFavorite] = useState(false);
 
   const [reviews, setReviews] = useState([]);
   const [rating, setRating] = useState(5);
@@ -72,7 +72,7 @@ const BookDetail = () => {
     try {
       const res = await axios.post(`${BASE_URL}/wishlist/toggle`, {
         book_id: parseInt(id),
-        user_id: user.id 
+        user_id: user.id
       });
       setIsFavorite(res.data.status);
     } catch (error) {
@@ -112,6 +112,21 @@ const BookDetail = () => {
     }
   };
 
+  // Logic tính toán thống kê đánh giá
+  const ratingStats = (() => {
+    if (reviews.length === 0) return { avg: 0, total: 0, distribution: [] };
+    const sum = reviews.reduce((acc, rev) => acc + rev.rating, 0);
+    const distribution = [5, 4, 3, 2, 1].map(star => {
+      const count = reviews.filter(r => r.rating === star).length;
+      return { star, count, percent: (count / reviews.length) * 100 };
+    });
+    return {
+      avg: (sum / reviews.length).toFixed(1),
+      total: reviews.length,
+      distribution
+    };
+  })();
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -141,11 +156,13 @@ const BookDetail = () => {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
+      {/* Nút quay lại */}
       <button onClick={() => navigate(-1)} className="group mb-6 flex items-center text-gray-600 hover:text-indigo-600 font-medium">
         <span className="mr-2 transform group-hover:-translate-x-1 transition-transform">←</span>
         Quay lại
       </button>
 
+      {/* Card chi tiết sách */}
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-50 flex flex-col md:flex-row">
         <div className="md:w-5/12 bg-gray-50 p-8 flex items-center justify-center border-r border-gray-100">
           <div className="relative w-full max-w-[320px] aspect-[3/4] rounded-lg shadow-2xl overflow-hidden bg-white">
@@ -212,9 +229,38 @@ const BookDetail = () => {
         </div>
       </div>
 
+      {/* PHẦN ĐÁNH GIÁ TỔNG QUAN */}
       <div className="mt-16 border-t border-gray-100 pt-12">
         <h2 className="text-3xl font-black text-gray-900 mb-8">Đánh giá từ độc giả</h2>
+        
+        <div className="flex flex-wrap items-center gap-8 mb-10 p-8 bg-gradient-to-r from-indigo-50 to-white rounded-3xl border border-indigo-100">
+          <div className="text-center px-4">
+            <div className="text-6xl font-black text-indigo-600 leading-none">{ratingStats.avg}</div>
+            <div className="flex text-yellow-400 text-xl mt-2 justify-center">
+              {[...Array(5)].map((_, i) => (
+                <span key={i}>{i < Math.round(ratingStats.avg) ? '★' : '☆'}</span>
+              ))}
+            </div>
+            <p className="text-gray-500 text-sm font-bold mt-1 uppercase tracking-tighter">{ratingStats.total} nhận xét</p>
+          </div>
 
+          <div className="flex-1 min-w-[280px] space-y-2 border-l border-gray-100 pl-8">
+            {ratingStats.distribution.map((item) => (
+              <div key={item.star} className="flex items-center gap-4">
+                <span className="text-sm font-bold text-gray-600 w-12">{item.star} sao</span>
+                <div className="flex-1 h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-yellow-400 rounded-full" 
+                    style={{ width: `${item.percent}%` }}
+                  ></div>
+                </div>
+                <span className="text-sm text-gray-400 w-8 font-medium">{item.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Lưới nhập đánh giá và danh sách đánh giá */}
         <div className="grid md:grid-cols-2 gap-12">
           <div>
             {hasReviewed ? (
@@ -267,7 +313,7 @@ const BookDetail = () => {
             )}
           </div>
 
-          <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+          <div className="space-y-6 max-h-[550px] overflow-y-auto pr-2 custom-scrollbar">
             {reviews.length === 0 ? (
               <div className="text-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
                 <p className="text-gray-400 italic">Chưa có đánh giá nào. Hãy là người đầu tiên!</p>
@@ -278,7 +324,7 @@ const BookDetail = () => {
                   <div className="flex justify-between items-center mb-3">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold text-xs">
-                        U
+                        {rev.user_id}
                       </div>
                       <span className="font-bold text-gray-700 text-sm">Người dùng #{rev.user_id}</span>
                     </div>
