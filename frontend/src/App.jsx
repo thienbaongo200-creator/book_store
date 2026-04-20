@@ -14,6 +14,8 @@ import AdminOrders from './pages/AdminOrders';
 import AdminUsers from './pages/AdminUsers';
 import AdminCategories from './pages/AdminCategories';
 import About from './pages/About';
+import Contact from './pages/Contact';
+import AdminContacts from './pages/AdminContacts';
 function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [user, setUser] = useState(null);
@@ -55,6 +57,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/about" element={<About />} />
+          <Route path="/contact" element={<Contact />} />
           {/* Private Routes (Cần đăng nhập) */}
           <Route path="/cart" element={<PrivateRoute><Cart /></PrivateRoute>} />
           <Route path="/wishlist" element={<PrivateRoute><Wishlist /></PrivateRoute>} />
@@ -80,7 +83,7 @@ function App() {
             <Route path="books" element={<Admin />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="users" element={<AdminUsers />} />
-
+            <Route path="contacts" element={<AdminContacts />} />
             {/* --- DÒNG QUAN TRỌNG MÌNH VỪA THÊM VÀO ĐÂY --- */}
             <Route path="categories" element={<AdminCategories />} />
             

@@ -106,6 +106,9 @@ const Navbar = ({ onSearch }) => {
         <Link to="/about" className="text-sm font-black text-gray-500 hover:text-indigo-600 transition-colors hidden md:block uppercase tracking-widest">
           Giới thiệu
         </Link>
+        <Link to="/contact" className="text-sm font-black text-gray-500 hover:text-indigo-600 transition-colors hidden md:block uppercase tracking-widest ml-6">
+          Liên hệ
+        </Link>
         {/* Search Bar - MỚI: Thêm dropdown gợi ý */}
         <form onSubmit={handleSearch} className="flex-1 mx-8 max-w-md hidden md:block relative">
           <div className="relative">

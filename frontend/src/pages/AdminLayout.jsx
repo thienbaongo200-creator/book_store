@@ -33,6 +33,9 @@ const AdminLayout = () => {
           <Link to="/admin/users" className="block px-4 py-3 rounded-xl hover:bg-indigo-600 transition-all font-bold">
             Người Dùng
           </Link>
+          <Link to="/admin/contacts" className="block px-4 py-3 rounded-xl hover:bg-indigo-600 transition-all font-bold">
+            Tin nhắn liên hệ
+          </Link>
         </nav>
 
         <div className="p-4 border-t border-gray-800">

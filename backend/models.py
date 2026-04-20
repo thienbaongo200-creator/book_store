@@ -2,7 +2,8 @@ from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Floa
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
-
+from pydantic import BaseModel
+from datetime import datetime
 class Category(Base):
     __tablename__ = "categories"
     id = Column(Integer, primary_key=True, index=True)
@@ -91,3 +92,15 @@ class Wishlist(Base):
     
     book = relationship("Book")
     user = relationship("User", back_populates="wishlist_items")
+    
+class Contact(Base):
+    __tablename__ = "contacts"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    name          = Column(String(255), nullable=False)
+    email         = Column(String(255), nullable=False)
+    subject       = Column(String(1000), nullable=False)
+    message       = Column(Text, nullable=False)
+    status        = Column(String(255), default="pending")   # pending | replied
+    reply_message = Column(Text, nullable=True)
+    created_at    = Column(DateTime, default=datetime.utcnow)

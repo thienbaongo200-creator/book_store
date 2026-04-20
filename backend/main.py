@@ -15,6 +15,10 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 import models
 import schemas
 from database import SessionLocal, engine
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime
 
 # --- CẤU HÌNH HỆ THỐNG ---
 models.Base.metadata.create_all(bind=engine)
@@ -22,7 +26,12 @@ models.Base.metadata.create_all(bind=engine)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "static", "images")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-
+# --- CẤU HÌNH EMAIL (dùng Gmail App Password) ---
+EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
+EMAIL_PORT = 2525           
+EMAIL_USER = 'f6a814419913ed'
+EMAIL_PASS = 'add94cf5de6edd'
+EMAIL_NAME = "BookStore Support"
 app = FastAPI(
     title="Hệ thống Quản lý Nhà sách - Team Bảo",
     description="API quản lý sách tích hợp phân quyền và bảo mật người dùng",
@@ -55,7 +64,14 @@ def check_admin_role(user_role: Optional[str]):
 
 class CategoryCreate(BaseModel):
     name: str
+class ContactCreate(BaseModel):
+    name: str
+    email: str
+    subject: str
+    message: str
 
+class ReplyCreate(BaseModel):
+    reply_message: str
 # --- 1. HỆ THỐNG & TÀI KHOẢN ---
 
 @app.get("/", tags=["Hệ thống"])
@@ -567,3 +583,100 @@ def create_review(review: ReviewCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_review)
     return {"message": "Gửi đánh giá thành công!", "review": new_review}
+
+# --- 9. LIÊN HỆ ---
+
+@app.post("/contact/", tags=["Liên hệ"])
+def submit_contact(data: ContactCreate, db: Session = Depends(get_db)):
+    new_msg = models.Contact(
+        name=data.name,
+        email=data.email,
+        subject=data.subject,
+        message=data.message,
+        status="pending",
+        created_at=datetime.utcnow()
+    )
+    db.add(new_msg)
+    db.commit()
+    db.refresh(new_msg)
+    return {"message": "Gửi tin nhắn thành công!", "id": new_msg.id}
+
+
+@app.get("/admin/contacts/", tags=["Quản trị - Liên hệ"])
+def get_all_contacts(
+    x_user_role: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    check_admin_role(x_user_role)
+    return db.query(models.Contact).order_by(models.Contact.id.desc()).all()
+
+
+@app.post("/admin/contacts/{contact_id}/reply", tags=["Quản trị - Liên hệ"])
+def reply_contact(
+    contact_id: int,
+    data: ReplyCreate,
+    x_user_role: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    check_admin_role(x_user_role)
+
+    contact = db.query(models.Contact).filter(models.Contact.id == contact_id).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tin nhắn!")
+
+    # Gửi email
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"Re: {contact.subject} — BookStore"
+        msg["From"]    = f"{EMAIL_NAME} <{EMAIL_USER}>"
+        msg["To"]      = contact.email
+
+        html_body = f"""
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 32px; background: #f9fafb; border-radius: 16px;">
+          <div style="background: #4F46E5; color: white; padding: 24px 32px; border-radius: 12px 12px 0 0;">
+            <h1 style="margin:0; font-size:24px; font-style:italic;">BookStore</h1>
+          </div>
+          <div style="background: white; padding: 32px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; border-top: none;">
+            <p style="color:#6b7280;">Xin chào <strong>{contact.name}</strong>,</p>
+            <p style="color:#6b7280;">Cảm ơn bạn đã liên hệ với chúng tôi về chủ đề: <strong>{contact.subject}</strong>.</p>
+            <div style="background:#f3f4f6; border-left: 4px solid #4F46E5; padding: 16px 20px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin:0; color:#374151; white-space:pre-wrap;">{data.reply_message}</p>
+            </div>
+            <hr style="border:none; border-top:1px solid #e5e7eb; margin: 24px 0;">
+            <p style="color:#9ca3af; font-size:12px;">Đây là email tự động từ BookStore. Vui lòng không trả lời email này.<br>
+            Nếu cần hỗ trợ thêm, hãy liên hệ lại qua trang web của chúng tôi.</p>
+          </div>
+        </div>
+        """
+        msg.attach(MIMEText(html_body, "html"))
+
+        with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(EMAIL_USER, EMAIL_PASS)
+            server.sendmail(EMAIL_USER, contact.email, msg.as_string())
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi gửi email: {str(e)}")
+
+    # Cập nhật DB
+    contact.status = "replied"
+    contact.reply_message = data.reply_message
+    db.commit()
+
+    return {"message": f"Đã phản hồi tới {contact.email}"}
+
+
+@app.delete("/admin/contacts/{contact_id}", tags=["Quản trị - Liên hệ"])
+def delete_contact(
+    contact_id: int,
+    x_user_role: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    check_admin_role(x_user_role)
+    contact = db.query(models.Contact).filter(models.Contact.id == contact_id).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Không tìm thấy!")
+    db.delete(contact)
+    db.commit()
+    return {"message": "Đã xóa tin nhắn"}
