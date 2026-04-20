@@ -98,6 +98,53 @@ const Admin = () => {
     }
   };
 
+  const [importing, setImporting] = useState(false);
+const [importResult, setImportResult] = useState(null);
+
+const handleExport = () => {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const link = document.createElement('a');
+  link.href = `${BASE_URL}/admin/books/export`;
+  link.setAttribute('download', 'danh_sach_sach.xlsx');
+  // Gửi header role qua query param workaround (vì link thẻ <a> không gửi header được)
+  // → Dùng fetch thay thế
+  fetch(`${BASE_URL}/admin/books/export`, {
+    headers: { 'x-user-role': user.role || 'admin' }
+  })
+    .then(res => res.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      link.href = url;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    })
+    .catch(() => alert("Lỗi xuất file!"));
+};
+
+const handleImport = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  setImporting(true);
+  setImportResult(null);
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await axios.post(`${BASE_URL}/admin/books/import`, formData, {
+      headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
+    });
+    setImportResult({ success: true, data: res.data });
+    fetchData(); // Reload bảng sách
+  } catch (err) {
+    setImportResult({ success: false, message: err.response?.data?.detail || "Lỗi nhập file!" });
+  } finally {
+    setImporting(false);
+    e.target.value = ''; // Reset input file
+  }
+};
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       {/* HEADER QUẢN LÝ */}
@@ -113,7 +160,64 @@ const Admin = () => {
           + Thêm Sách Mới
         </button>
       </div>
+      {/* PANEL NHẬP / XUẤT KHO */}
+<div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 mb-6 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+  <div>
+    <h2 className="font-black text-gray-800 text-lg">Quản lý kho hàng</h2>
+    <p className="text-gray-400 text-sm mt-0.5">Xuất danh sách sách ra Excel hoặc nhập tồn kho mới từ file</p>
+  </div>
 
+  <div className="flex gap-3 flex-wrap">
+    {/* XUẤT KHO */}
+    <button
+      onClick={handleExport}
+      className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      </svg>
+      Xuất Excel
+    </button>
+
+    {/* NHẬP KHO */}
+    <label className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all shadow-md cursor-pointer ${importing ? 'bg-gray-300 text-gray-500' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100'}`}>
+      {importing ? (
+        <>
+          <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+          Đang xử lý...
+        </>
+      ) : (
+        <>
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12" />
+          </svg>
+          Nhập từ Excel
+        </>
+      )}
+      <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImport} disabled={importing} />
+    </label>
+  </div>
+</div>
+
+{/* KẾT QUẢ NHẬP KHO */}
+{importResult && (
+  <div className={`mb-6 p-5 rounded-2xl border-l-4 ${importResult.success ? 'bg-emerald-50 border-emerald-500' : 'bg-red-50 border-red-500'}`}>
+    <p className={`font-black text-sm ${importResult.success ? 'text-emerald-700' : 'text-red-700'}`}>
+      {importResult.success ? '✓ ' + importResult.data.message : '✗ ' + importResult.message}
+    </p>
+    {importResult.success && importResult.data.not_found?.length > 0 && (
+      <p className="text-amber-600 text-xs font-bold mt-1">
+        ⚠ Không tìm thấy ID: {importResult.data.not_found.join(', ')}
+      </p>
+    )}
+    {importResult.success && importResult.data.errors?.length > 0 && (
+      <ul className="text-red-500 text-xs mt-1 space-y-0.5">
+        {importResult.data.errors.map((e, i) => <li key={i}>• {e}</li>)}
+      </ul>
+    )}
+    <button onClick={() => setImportResult(null)} className="mt-2 text-xs text-gray-400 hover:text-gray-600 font-bold">Đóng ×</button>
+  </div>
+)}
       {/* THANH TÌM KIẾM */}
       <div className="mb-6">
         <input 

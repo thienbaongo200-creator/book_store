@@ -12,8 +12,8 @@ import Register from './pages/Register';
 import AdminLayout from './pages/AdminLayout'; 
 import AdminOrders from './pages/AdminOrders';
 import AdminUsers from './pages/AdminUsers';
-import AdminCategories from './pages/AdminCategories'; // Đã có import
-
+import AdminCategories from './pages/AdminCategories';
+import About from './pages/About';
 function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [user, setUser] = useState(null);
@@ -54,7 +54,7 @@ function App() {
           <Route path="/books/:id" element={<BookDetail />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          
+          <Route path="/about" element={<About />} />
           {/* Private Routes (Cần đăng nhập) */}
           <Route path="/cart" element={<PrivateRoute><Cart /></PrivateRoute>} />
           <Route path="/wishlist" element={<PrivateRoute><Wishlist /></PrivateRoute>} />

@@ -8,7 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.sql.expression import func
-# Import từ các file local của Team
+import io
+from fastapi.responses import StreamingResponse
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 import models
 import schemas
 from database import SessionLocal, engine
@@ -227,6 +230,135 @@ def get_random_books(limit: int = 5, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Lỗi Backend: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- XUẤT KHO ra Excel ---
+@app.get("/admin/books/export", tags=["Quản trị - Sách"])
+def export_books_excel(
+    x_user_role: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    check_admin_role(x_user_role)
+    books = db.query(models.Book).options(joinedload(models.Book.category)).all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Danh sách sách"
+
+    # Style header
+    header_fill = PatternFill("solid", fgColor="4F46E5")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    center = Alignment(horizontal="center", vertical="center")
+    thin = Side(style="thin", color="D1D5DB")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    headers = ["ID", "Tên sách", "Tác giả", "Danh mục", "Giá (VNĐ)", "Tồn kho", "Mô tả"]
+    col_widths = [6, 40, 25, 20, 15, 12, 50]
+
+    for col, (h, w) in enumerate(zip(headers, col_widths), 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center
+        cell.border = border
+        ws.column_dimensions[cell.column_letter].width = w
+
+    ws.row_dimensions[1].height = 30
+
+    # Dữ liệu
+    alt_fill = PatternFill("solid", fgColor="F5F3FF")
+    for i, book in enumerate(books, 2):
+        row_data = [
+            book.id,
+            book.title,
+            book.author,
+            book.category.name if book.category else "",
+            book.price,
+            book.stock,
+            book.description or ""
+        ]
+        fill = alt_fill if i % 2 == 0 else None
+        for col, val in enumerate(row_data, 1):
+            cell = ws.cell(row=i, column=col, value=val)
+            cell.border = border
+            cell.alignment = Alignment(vertical="center", wrap_text=(col == 7))
+            if fill:
+                cell.fill = fill
+            if col == 5:  # Giá
+                cell.number_format = '#,##0'
+        ws.row_dimensions[i].height = 20
+
+    # Footer tổng kết
+    footer_row = len(books) + 2
+    ws.cell(row=footer_row, column=5, value=f"=SUM(E2:E{len(books)+1})").number_format = '#,##0'
+    ws.cell(row=footer_row, column=6, value=f"=SUM(F2:F{len(books)+1})")
+    label_cell = ws.cell(row=footer_row, column=4, value="TỔNG CỘNG")
+    label_cell.font = Font(bold=True, color="4F46E5")
+    label_cell.alignment = Alignment(horizontal="right")
+
+    # Freeze header row
+    ws.freeze_panes = "A2"
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=danh_sach_sach.xlsx"}
+    )
+
+
+# --- NHẬP KHO từ Excel ---
+@app.post("/admin/books/import", tags=["Quản trị - Sách"])
+async def import_books_excel(
+    file: UploadFile = File(...),
+    x_user_role: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    check_admin_role(x_user_role)
+
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="Chỉ chấp nhận file .xlsx hoặc .xls!")
+
+    content = await file.read()
+    wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+    ws = wb.active
+
+    results = {"updated": 0, "not_found": [], "errors": []}
+
+    # Bỏ qua hàng header (row 1), đọc từ row 2
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row or row[0] is None:
+            continue
+        try:
+            book_id = int(row[0])
+            new_stock = row[5]  # Cột F = Tồn kho (index 5)
+
+            if new_stock is None:
+                continue
+
+            new_stock = int(new_stock)
+            if new_stock < 0:
+                results["errors"].append(f"ID {book_id}: Tồn kho không được âm")
+                continue
+
+            db_book = db.query(models.Book).filter(models.Book.id == book_id).first()
+            if not db_book:
+                results["not_found"].append(book_id)
+                continue
+
+            db_book.stock = new_stock
+            results["updated"] += 1
+
+        except (ValueError, TypeError) as e:
+            results["errors"].append(f"Lỗi dòng {row}: {str(e)}")
+
+    db.commit()
+    return {
+        "message": f"Nhập kho hoàn tất! Đã cập nhật {results['updated']} sách.",
+        **results
+    }
 # --- 4. GIỎ HÀNG  ---
 
 @app.post("/cart/", response_model=schemas.CartItemResponse, tags=["Giỏ hàng"])
@@ -280,18 +412,28 @@ def create_order(user_id: int, db: Session = Depends(get_db)):
     cart_items = db.query(models.CartItem).options(joinedload(models.CartItem.book)).filter(models.CartItem.user_id == user_id).all()
     if not cart_items:
         raise HTTPException(status_code=400, detail="Giỏ hàng trống!")
-    
+
+    # ── Kiểm tra tồn kho trước khi tạo đơn ──
+    for item in cart_items:
+        if item.book.stock < item.quantity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sách '{item.book.title}' chỉ còn {item.book.stock} cuốn trong kho!"
+            )
+
     total = sum(item.book.price * item.quantity for item in cart_items)
     new_order = models.Order(user_id=user_id, total_price=total, status="Success")
     db.add(new_order)
     db.flush()
-    
+
     for item in cart_items:
         db.add(models.OrderItem(
             order_id=new_order.id, book_id=item.book_id,
             quantity=item.quantity, price_at_purchase=item.book.price
         ))
-    
+        # ── Trừ tồn kho ──
+        item.book.stock -= item.quantity
+
     db.query(models.CartItem).filter(models.CartItem.user_id == user_id).delete()
     db.commit()
     return {"message": "Thanh toán thành công!", "order_id": new_order.id, "total": total}
