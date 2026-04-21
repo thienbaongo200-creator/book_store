@@ -36,7 +36,14 @@ class UserCreate(BaseModel):
     username: str
     password: str
     role: str = "user"
+    email: Optional[str] = None
+class ForgotPasswordRequest(BaseModel):
+    email: str
 
+class VerifyOTPRequest(BaseModel):
+    email: str
+    otp_code: str
+    new_password: str
 # Dùng cho trang Đăng nhập (Login)
 class UserLogin(BaseModel):
     username: str

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Float, UniqueConstraint
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Float, UniqueConstraint, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -30,12 +30,19 @@ class User(Base):
     username = Column(String(50), unique=True, index=True)
     password = Column(String(255))
     role = Column(String(20), default="user")
-    
+    email = Column(String(255), unique=True, nullable=True)
     orders = relationship("Order", back_populates="owner", cascade="all, delete-orphan")
     cart_items = relationship("CartItem", back_populates="user", cascade="all, delete-orphan")
     wishlist_items = relationship("Wishlist", back_populates="user", cascade="all, delete-orphan")
     reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
-
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    otp_code = Column(String(6), nullable=False)
+    is_used = Column(Boolean, default=False)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 class Review(Base):
     __tablename__ = "reviews"
     id = Column(Integer, primary_key=True, index=True)

@@ -9,7 +9,7 @@ const Register = () => {
     const [showPassword, setShowPassword] = useState(false); // Hiện mật khẩu chính
     const [showConfirmPassword, setShowConfirmPassword] = useState(false); // Hiện mật khẩu xác nhận
     const [loading, setLoading] = useState(false);
-    
+    const [email, setEmail] = useState("");
     const navigate = useNavigate();
     const BASE_URL = "http://127.0.0.1:8000";
 
@@ -17,33 +17,39 @@ const Register = () => {
     const handleInvalid = (e) => {
         e.target.setCustomValidity("Vui lòng điền vào trường này");
     };
-
     const handleInput = (e) => {
         e.target.setCustomValidity("");
     };
 
     const handleRegister = async (e) => {
-        e.preventDefault();
+    e.preventDefault();
 
-        if (password !== confirmPassword) {
-            alert("Mật khẩu xác nhận không khớp!");
-            return;
-        }
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) {
+        alert("Email không hợp lệ! Vui lòng nhập đúng định dạng.");
+        return;
+    }
 
-        setLoading(true);
-        try {
-            await axios.post(`${BASE_URL}/users/`, {
-                username: username,
-                password: password,
-                role: "user"
-            });
-            alert("Chúc mừng bạn đã đăng ký thành công!");
-            navigate("/login");
-        } catch (err) {
-            alert(err.response?.data?.detail || "Đăng ký thất bại, tên đăng nhập có thể đã tồn tại!");
-        } finally {
-            setLoading(false);
-        }
+    if (password !== confirmPassword) {
+        alert("Mật khẩu xác nhận không khớp!");
+        return;
+    }
+
+    setLoading(true);
+    try {
+        await axios.post(`${BASE_URL}/users/`, {
+            username: username,
+            password: password,
+            role: "user",
+            email: email
+        });
+        alert("Chúc mừng bạn đã đăng ký thành công!");
+        navigate("/login");
+    } catch (err) {
+        alert(err.response?.data?.detail || "Đăng ký thất bại, tên đăng nhập có thể đã tồn tại!");
+    } finally {
+        setLoading(false);
+    }
     };
 
     // Component icon con mắt để tái sử dụng
@@ -79,7 +85,17 @@ const Register = () => {
                             onChange={(e) => setUsername(e.target.value)}
                         />
                     </div>
-
+                    <div>
+                        <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Email</label>
+                        <input 
+                            type="email" required
+                            onInvalid={handleInvalid}
+                            onInput={handleInput}
+                            className="w-full px-6 py-4 rounded-2xl bg-gray-50 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold"
+                            placeholder="example@gmail.com"
+                            onChange={(e) => setEmail(e.target.value)}
+                        />
+                    </div>
                     {/* PASSWORD */}
                     <div className="relative">
                         <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Password</label>

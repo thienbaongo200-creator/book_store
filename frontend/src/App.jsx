@@ -16,6 +16,7 @@ import AdminCategories from './pages/AdminCategories';
 import About from './pages/About';
 import Contact from './pages/Contact';
 import AdminContacts from './pages/AdminContacts';
+import ForgotPassword from './pages/ForgotPassword';
 function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [user, setUser] = useState(null);
@@ -58,6 +59,7 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           {/* Private Routes (Cần đăng nhập) */}
           <Route path="/cart" element={<PrivateRoute><Cart /></PrivateRoute>} />
           <Route path="/wishlist" element={<PrivateRoute><Wishlist /></PrivateRoute>} />

@@ -18,8 +18,9 @@ from database import SessionLocal, engine
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime
-
+import random
+import string
+from datetime import datetime, timedelta
 # --- CẤU HÌNH HỆ THỐNG ---
 models.Base.metadata.create_all(bind=engine)
 
@@ -92,13 +93,78 @@ def login(user_data: schemas.UserLogin, db: Session = Depends(get_db)):
 
 @app.post("/users/", response_model=schemas.UserResponse, tags=["Tài khoản"])
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    # Kiểm tra username trùng
     db_user = db.query(models.User).filter(models.User.username == user.username).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Tên đăng nhập đã tồn tại!")
+    
+    # ← THÊM: Kiểm tra email bắt buộc và hợp lệ
+    if not user.email:
+        raise HTTPException(status_code=400, detail="Email là bắt buộc!")
+    
+    import re
+    email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_regex, user.email):
+        raise HTTPException(status_code=400, detail="Email không hợp lệ!")
+    
+    # Kiểm tra email trùng
+    existing_email = db.query(models.User).filter(models.User.email == user.email).first()
+    if existing_email:
+        raise HTTPException(status_code=400, detail="Email này đã được sử dụng!")
+    
     new_user = models.User(**user.model_dump())
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "Chào mừng bạn đến với BookStore! 🎉"
+        msg["From"]    = f"{EMAIL_NAME} <{EMAIL_USER}>"
+        msg["To"]      = user.email
+
+        html_body = f"""
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 32px; background: #f9fafb; border-radius: 16px;">
+          <div style="background: #4F46E5; color: white; padding: 24px 32px; border-radius: 12px 12px 0 0; text-align: center;">
+            <h1 style="margin:0; font-size:28px; font-style:italic; letter-spacing: -1px;">BookStore</h1>
+          </div>
+          <div style="background: white; padding: 32px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; border-top: none;">
+            <h2 style="color:#111827; font-size:20px;">Chào mừng, <strong>{user.username}</strong>! 👋</h2>
+            <p style="color:#6b7280; line-height:1.6;">
+              Tài khoản của bạn đã được tạo thành công. Bạn có thể đăng nhập ngay bây giờ và bắt đầu khám phá hàng nghìn đầu sách tại BookStore.
+            </p>
+
+            <div style="background:#F5F3FF; border-radius:12px; padding:20px 24px; margin: 24px 0;">
+              <p style="margin:0 0 8px 0; color:#6b7280; font-size:13px; text-transform:uppercase; letter-spacing:1px; font-weight:700;">Thông tin tài khoản</p>
+              <p style="margin:4px 0; color:#374151;"><strong>Username:</strong> {user.username}</p>
+              <p style="margin:4px 0; color:#374151;"><strong>Email:</strong> {user.email}</p>
+            </div>
+
+            <div style="text-align:center; margin: 28px 0;">
+              <a href="http://localhost:5173/login"
+                 style="background:#4F46E5; color:white; padding:14px 36px; border-radius:50px; text-decoration:none; font-weight:900; font-size:15px; display:inline-block; letter-spacing:0.5px;">
+                ĐĂNG NHẬP NGAY →
+              </a>
+            </div>
+
+            <hr style="border:none; border-top:1px solid #e5e7eb; margin: 24px 0;">
+            <p style="color:#9ca3af; font-size:12px; text-align:center;">
+              Nếu bạn không thực hiện đăng ký này, vui lòng bỏ qua email.<br>
+              © 2025 BookStore — Team Bảo
+            </p>
+          </div>
+        </div>
+        """
+        msg.attach(MIMEText(html_body, "html"))
+
+        with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(EMAIL_USER, EMAIL_PASS)
+            server.sendmail(EMAIL_USER, user.email, msg.as_string())
+
+    except Exception as e:
+        # Không raise lỗi — tài khoản đã tạo rồi, chỉ log warning
+        print(f"[WARNING] Gửi email chào mừng thất bại: {e}")
     return new_user
 
 # --- 2. QUẢN LÝ DANH MỤC ---
@@ -680,3 +746,99 @@ def delete_contact(
     db.delete(contact)
     db.commit()
     return {"message": "Đã xóa tin nhắn"}
+# --- 10. QUÊN MẬT KHẨU ---
+
+def generate_otp(length=6):
+    return ''.join(random.choices(string.digits, k=length))
+
+def send_otp_email(to_email: str, username: str, otp: str):
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Mã OTP đặt lại mật khẩu — BookStore"
+    msg["From"]    = f"{EMAIL_NAME} <{EMAIL_USER}>"
+    msg["To"]      = to_email
+
+    html_body = f"""
+    <div style="font-family: sans-serif; max-width: 520px; margin: auto; padding: 32px; background: #f9fafb; border-radius: 16px;">
+      <div style="background: #4F46E5; color: white; padding: 24px 32px; border-radius: 12px 12px 0 0;">
+        <h1 style="margin:0; font-size:24px; font-style:italic;">BookStore</h1>
+      </div>
+      <div style="background: white; padding: 32px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; border-top: none;">
+        <p style="color:#374151;">Xin chào <strong>{username}</strong>,</p>
+        <p style="color:#6b7280;">Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>
+        <p style="color:#6b7280;">Mã OTP của bạn là:</p>
+        <div style="text-align: center; margin: 24px 0;">
+          <span style="font-size: 48px; font-weight: 900; letter-spacing: 12px; color: #4F46E5; background: #EEF2FF; padding: 16px 32px; border-radius: 12px; display: inline-block;">{otp}</span>
+        </div>
+        <p style="color:#ef4444; font-size: 13px; text-align:center;">⏱ Mã có hiệu lực trong <strong>10 phút</strong>. Không chia sẻ mã này cho bất kỳ ai.</p>
+        <hr style="border:none; border-top:1px solid #e5e7eb; margin: 24px 0;">
+        <p style="color:#9ca3af; font-size:12px;">Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email này.</p>
+      </div>
+    </div>
+    """
+    msg.attach(MIMEText(html_body, "html"))
+
+    with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
+        server.ehlo()
+        server.starttls()
+        server.login(EMAIL_USER, EMAIL_PASS)
+        server.sendmail(EMAIL_USER, to_email, msg.as_string())
+
+
+@app.post("/auth/forgot-password", tags=["Tài khoản"])
+def forgot_password(data: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == data.email).first()
+    if not user:
+        # Trả về success giả để tránh email enumeration attack
+        return {"message": "Nếu email tồn tại, mã OTP đã được gửi!"}
+    
+    # Xoá OTP cũ chưa dùng của user này
+    db.query(models.PasswordResetToken).filter(
+        models.PasswordResetToken.user_id == user.id,
+        models.PasswordResetToken.is_used == False
+    ).delete()
+    
+    otp = generate_otp()
+    token_record = models.PasswordResetToken(
+        user_id=user.id,
+        otp_code=otp,
+        is_used=False,
+        expires_at=datetime.utcnow() + timedelta(minutes=10)
+    )
+    db.add(token_record)
+    db.commit()
+    
+    try:
+        send_otp_email(user.email, user.username, otp)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi gửi email: {str(e)}")
+    
+    return {"message": "Nếu email tồn tại, mã OTP đã được gửi!"}
+
+
+@app.post("/auth/reset-password", tags=["Tài khoản"])
+def reset_password(data: schemas.VerifyOTPRequest, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == data.email).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Email không tồn tại!")
+    
+    token_record = db.query(models.PasswordResetToken).filter(
+        models.PasswordResetToken.user_id == user.id,
+        models.PasswordResetToken.otp_code == data.otp_code,
+        models.PasswordResetToken.is_used == False
+    ).first()
+    
+    if not token_record:
+        raise HTTPException(status_code=400, detail="Mã OTP không hợp lệ!")
+    
+    if datetime.utcnow() > token_record.expires_at:
+        raise HTTPException(status_code=400, detail="Mã OTP đã hết hạn! Vui lòng yêu cầu mã mới.")
+    
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Mật khẩu phải có ít nhất 6 ký tự!")
+    
+    # Cập nhật mật khẩu và đánh dấu OTP đã dùng
+    user.password = data.new_password
+    token_record.is_used = True
+    db.commit()
+    
+    return {"message": "Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại."}
