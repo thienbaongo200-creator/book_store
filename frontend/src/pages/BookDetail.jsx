@@ -195,10 +195,10 @@ const BookDetail = () => {
             </div>
             
             <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 mb-8 relative">
-                <div className="absolute -top-3 left-6 bg-white px-2 text-xs font-bold text-gray-400 uppercase tracking-tighter">Mô tả tóm tắt</div>
-                <p className="text-gray-600 leading-relaxed italic">
-                  Cuốn sách "{book.title}" là một tác phẩm đặc sắc của {book.author}, mang lại nhiều giá trị sâu sắc cho độc giả.
-                </p>
+                <div className="absolute -top-3 left-6 bg-white px-2 text-xs font-bold text-gray-400 uppercase tracking-tighter">Mô tả chi tiết</div>
+                  <p className="text-gray-600 leading-relaxed italic">
+                    {book.description || "Chưa có mô tả cho cuốn sách này."}
+                  </p>
             </div>
           </div>
 
